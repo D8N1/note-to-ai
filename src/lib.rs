@@ -2,6 +2,7 @@ pub mod ai;
 pub mod audio;
 pub mod config;
 pub mod crypto;
+pub mod attestation;
 pub mod identity;
 pub mod logger;
 pub mod obsidian;

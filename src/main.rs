@@ -16,6 +16,7 @@ mod swarm;
 mod audio;
 mod scheduler;
 mod obsidian;
+mod attestation;
 
 use config::Settings;
 // Temporarily disabled while fixing Arrow ecosystem conflicts
@@ -120,6 +121,16 @@ enum Commands {
         #[command(subcommand)]
         action: ObsidianAction,
     },
+
+    /// Record an attestation event (prototype)
+    Attest {
+        /// Path to related file/content (optional)
+        #[arg(short, long)]
+        path: Option<PathBuf>,
+        /// Freeform context string to hash
+        #[arg(short, long)]
+        context: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -198,6 +209,76 @@ impl NoteToAI {
             config,
             // storage,
         })
+    }
+
+    /// Minimal attestation recording: creates schema if needed and writes one event
+    pub async fn attest(&self, path: Option<PathBuf>, context: Option<String>) -> Result<()> {
+    use attestation::{AttestationEngine, AttestationEvent, AttestationStatus};
+    use attestation::signer::Signer;
+        use blake3::Hasher;
+        use chrono::Utc;
+        use rand::{distributions::Alphanumeric, Rng};
+        use base64::{engine::general_purpose, Engine as _};
+    use ark_bn254::Fr;
+    use crypto::zk_proofs::ZKProofs;
+
+    let db_path = PathBuf::from(&self.config.database.path);
+    let engine = AttestationEngine::new(db_path)?;
+    engine.initialize()?;
+
+        // Build a context hash per research format (sha256 in doc; we use blake3 here for now)
+        let mut hasher = Hasher::new();
+        if let Some(ref p) = path {
+            hasher.update(p.to_string_lossy().as_bytes());
+        }
+        if let Some(ref c) = context { hasher.update(c.as_bytes()); }
+        let context_hash = hex::encode(hasher.finalize().as_bytes());
+
+        // Dummy zk proof placeholders (base64) until real circuits land
+    // Generate a toy Groth16 proof (placeholder until real circuits)
+    let mut zk = ZKProofs::new()?;
+    zk.setup()?;
+    let a = Fr::from(3u64);
+    let b = Fr::from(4u64);
+    let (proof_bytes, vk_bytes, public_inputs) = zk.prove_toy_sum(a, b)?;
+    let dummy_proof = general_purpose::STANDARD.encode(&proof_bytes);
+    let dummy_vk = general_purpose::STANDARD.encode(&vk_bytes);
+    let metadata_b64 = general_purpose::STANDARD.encode(&public_inputs);
+
+        // Random id
+        let id: String = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(16)
+            .map(char::from)
+            .collect();
+
+        let evt = AttestationEvent {
+            id,
+            timestamp: Utc::now(),
+            device_id: self.config.signal.device_id.map(|d| d.to_string()).unwrap_or_else(|| "unknown".to_string()),
+            context_hash,
+            proof_data_b64: dummy_proof,
+            verification_key_b64: dummy_vk,
+            metadata_encrypted_b64: Some(metadata_b64),
+            related_path: path,
+            status: AttestationStatus::Pending,
+        };
+
+        engine.record_event(&evt)?;
+        // Optionally sign markdown file to create a sidecar signature JSON
+        if let Some(ref p) = evt.related_path {
+            if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
+                if ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown") {
+                    let key_dir = self.config.crypto.key_path.clone();
+                    let signer = Signer::load_or_generate(key_dir)?;
+                    if let Ok(sidecar_path) = signer.sign_markdown_sidecar(p, &evt.context_hash, Some(evt.id.clone())) {
+                        println!("🖊️  Signature sidecar written: {}", sidecar_path.display());
+                    }
+                }
+            }
+        }
+        println!("✅ Attestation recorded: {} (ctx: {})", evt.id, evt.context_hash);
+        Ok(())
     }
     
     /// Start the main service loop
@@ -630,6 +711,11 @@ async fn main() -> Result<()> {
                     app.obsidian_scan().await?;
                 }
             }
+        }
+
+        Some(Commands::Attest { path, context }) => {
+            let app = NoteToAI::new(&cli.config).await?;
+            app.attest(path, context).await?;
         }
         
         None => {

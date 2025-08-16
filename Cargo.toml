@@ -45,6 +45,16 @@ thiserror = "1.0"
 chrono = { version = "0.4", features = ["serde", "std"] }
 blake3 = "1.5"
 ed25519-dalek = "2.0"
+hex = "0.4"
+base64 = "0.22"
+rand = "0.8"
+ark-std = "0.4"
+ark-ff = "0.4"
+ark-relations = "0.4"
+ark-bn254 = "0.4"
+ark-groth16 = "0.4"
+ark-serialize = "0.4"
+ark-snark = "0.4"
 
 # P2P & CRDT
 libp2p = { version = "0.53", features = ["tokio", "macros"] }
