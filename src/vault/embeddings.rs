@@ -5,6 +5,7 @@ use anyhow::{Result, Context};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use crate::logger::Logger;
+use async_trait::async_trait;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddingModel {
@@ -39,6 +40,12 @@ pub struct BlockEmbedding {
     pub vector: Vec<f32>,
     pub start_pos: usize,
     pub end_pos: usize,
+}
+
+/// A thin abstraction to allow swapping embedding backends without touching callers
+#[async_trait]
+pub trait EmbeddingProvider: Send + Sync {
+    async fn embed(&self, text: &str, model_name: &str) -> Result<Vec<f32>>;
 }
 
 pub struct Embeddings {
@@ -183,5 +190,12 @@ impl Embeddings {
         stats.insert("total_embeddings".to_string(), cache.len());
         stats.insert("cache_size_bytes".to_string(), cache.values().map(|v| v.len() * 4).sum());
         Ok(stats)
+    }
+}
+
+#[async_trait]
+impl EmbeddingProvider for Embeddings {
+    async fn embed(&self, text: &str, model_name: &str) -> Result<Vec<f32>> {
+        self.embed_text(text, model_name).await
     }
 }

@@ -12,7 +12,7 @@ cargo:rerun-if-env-changed=CARGO_CFG_TARGET_OS
 cargo:rerun-if-env-changed=CARGO_CFG_TARGET_ENV
 cargo:rerun-if-env-changed=CARGO_CFG_TARGET_ENDIAN
 OPT_LEVEL = Some(0)
-OUT_DIR = Some(/Users/unique/Desktop/note-to-ai/note-to-ai/target/debug/build/ring-f4705a310326209b/out)
+OUT_DIR = Some(/Users/unique/Desktop/note-to-ai/target/debug/build/ring-f4705a310326209b/out)
 TARGET = Some(aarch64-apple-darwin)
 HOST = Some(aarch64-apple-darwin)
 cargo:rerun-if-env-changed=CC_aarch64-apple-darwin
@@ -24,7 +24,7 @@ HOST_CC = None
 cargo:rerun-if-env-changed=CC
 CC = None
 cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
-RUSTC_WRAPPER = Some(/Users/unique/.vscode/extensions/rust-lang.rust-analyzer-0.3.2555-darwin-arm64/server/rust-analyzer)
+RUSTC_WRAPPER = None
 cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
 CRATE_CC_NO_DEFAULTS = None
 DEBUG = Some(true)
@@ -41,7 +41,7 @@ CFLAGS_aarch64-apple-darwin = None
 CARGO_ENCODED_RUSTFLAGS = Some()
 cargo:rustc-link-lib=static=ring_core_0_17_14_
 OPT_LEVEL = Some(0)
-OUT_DIR = Some(/Users/unique/Desktop/note-to-ai/note-to-ai/target/debug/build/ring-f4705a310326209b/out)
+OUT_DIR = Some(/Users/unique/Desktop/note-to-ai/target/debug/build/ring-f4705a310326209b/out)
 TARGET = Some(aarch64-apple-darwin)
 HOST = Some(aarch64-apple-darwin)
 cargo:rerun-if-env-changed=CC_aarch64-apple-darwin
@@ -53,7 +53,7 @@ HOST_CC = None
 cargo:rerun-if-env-changed=CC
 CC = None
 cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
-RUSTC_WRAPPER = Some(/Users/unique/.vscode/extensions/rust-lang.rust-analyzer-0.3.2555-darwin-arm64/server/rust-analyzer)
+RUSTC_WRAPPER = None
 cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
 CRATE_CC_NO_DEFAULTS = None
 DEBUG = Some(true)
@@ -69,7 +69,7 @@ cargo:rerun-if-env-changed=CFLAGS_aarch64-apple-darwin
 CFLAGS_aarch64-apple-darwin = None
 CARGO_ENCODED_RUSTFLAGS = Some()
 cargo:rustc-link-lib=static=ring_core_0_17_14__test
-cargo:rustc-link-search=native=/Users/unique/Desktop/note-to-ai/note-to-ai/target/debug/build/ring-f4705a310326209b/out
+cargo:rustc-link-search=native=/Users/unique/Desktop/note-to-ai/target/debug/build/ring-f4705a310326209b/out
 cargo:rerun-if-changed=crypto/perlasm/x86_64-xlate.pl
 cargo:rerun-if-changed=crypto/perlasm/x86gas.pl
 cargo:rerun-if-changed=crypto/perlasm/x86nasm.pl

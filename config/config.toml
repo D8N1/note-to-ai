@@ -32,3 +32,10 @@ device_id = 1
 [database]
 path = "./database.db"
 encrypted = true
+
+[obsidian]
+vault_path = "./vault"
+ai_response_template = "AI Responses/{{date}}/{{timestamp}} - {{query_summary}}"
+daily_note_template = "Daily Notes/{{date}}"
+auto_link = true
+default_tags = ["#ai-generated", "#note-to-ai"]

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use anyhow::{Result, Context};
 use clap::{Parser, Subcommand};
 use tokio::signal as tokio_signal;
-use tracing::{info, error, warn};
+use tracing::{info, warn};
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 mod config;
@@ -15,6 +15,7 @@ mod identity;
 mod swarm;
 mod audio;
 mod scheduler;
+mod obsidian;
 
 use config::Settings;
 // Temporarily disabled while fixing Arrow ecosystem conflicts
@@ -91,6 +92,17 @@ enum Commands {
     /// Show system status and statistics
     Status,
     
+    /// Index vault files for search
+    Index {
+        /// Force full re-indexing (ignore change detection)
+        #[arg(long)]
+        force: bool,
+        
+        /// Show detailed progress
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    
     /// Manage AI models
     Models {
         #[command(subcommand)]
@@ -101,6 +113,12 @@ enum Commands {
     Signal {
         #[command(subcommand)]
         action: SignalAction,
+    },
+    
+    /// Test Obsidian integration
+    Obsidian {
+        #[command(subcommand)]
+        action: ObsidianAction,
     },
 }
 
@@ -128,6 +146,23 @@ enum SignalAction {
     Test,
     /// Show Signal status
     Status,
+}
+
+#[derive(Subcommand)]
+enum ObsidianAction {
+    /// Create a demo AI response note
+    Demo {
+        /// Query to simulate
+        #[arg(default_value = "What are the key concepts in quantum computing?")]
+        query: String,
+    },
+    /// Create or update today's daily note
+    Daily {
+        /// Interaction summary to add
+        summary: String,
+    },
+    /// Scan vault for linkable notes
+    Scan,
 }
 
 /// Main application state
@@ -221,21 +256,28 @@ impl NoteToAI {
     /// Query the knowledge base
     pub async fn query(&self, text: &str, semantic: bool, limit: usize) -> Result<()> {
         info!("Processing query: {}", text);
-        
-        if semantic {
-            // TODO: Generate embeddings for query and search vectors
-            info!("Performing semantic search...");
-            println!("Semantic search not yet implemented");
+        let vault_path = PathBuf::from(&self.config.vault.path);
+        let db_path = PathBuf::from(&self.config.database.path);
+
+        let vault = vault::Vault::new(db_path, vault_path).await?;
+        let results = vault.search(text, limit, /*hybrid*/ semantic).await?;
+
+        if results.is_empty() {
+            println!("No results.");
         } else {
-            // TODO: Perform text search when storage is implemented
-            println!("Text search found 0 results (storage not yet implemented):");
+            println!("Found {} result(s):", results.len());
+            for (i, r) in results.iter().enumerate() {
+                println!("{}. {} — {}", i + 1, r.document.title, r.document.path.display());
+                println!("   score: {:.3}, tags: {:?}", r.score, r.document.tags);
+                println!("   snippet: {}\n", r.document.snippet);
+            }
         }
-        
+
         Ok(())
     }
     
     /// Export notes to different formats
-    pub async fn export(&self, output: &PathBuf, format: &str, date_range: Option<&str>) -> Result<()> {
+    pub async fn export(&self, output: &PathBuf, format: &str, _date_range: Option<&str>) -> Result<()> {
         info!("Exporting notes to {} format at {}", format, output.display());
         
         // TODO: Implement export functionality
@@ -252,29 +294,130 @@ impl NoteToAI {
         println!("🤖 note-to-ai System Status");
         println!("===========================");
         
-        // Storage statistics
-        // TODO: Show storage stats when storage is implemented
-        println!("📊 Storage:");
-        println!("  Documents: 0 (storage not implemented)");
-        println!("  Embeddings: 0 (storage not implemented)");
-        println!("  Storage size: 0.00 MB (storage not implemented)");
-        println!("  Avg search time: 0.00ms (storage not implemented)");
+        // Initialize and use the indexer to get real vault stats
+        let vault_path = PathBuf::from(&self.config.vault.path);
+        let db_path = PathBuf::from(&self.config.database.path);
+        
+        match vault::indexer::VaultIndexer::new(db_path, vault_path.clone()) {
+            Ok(indexer) => {
+                // Initialize the database
+                if let Err(e) = indexer.initialize_db().await {
+                    warn!("Failed to initialize indexer database: {}", e);
+                }
+                
+                // Get vault statistics
+                match indexer.get_stats().await {
+                    Ok(stats) => {
+                        println!("📊 Vault ({}/):", vault_path.display());
+                        println!("  Total files: {}", stats.total_files);
+                        println!("  Total size: {:.2} MB", stats.total_size as f64 / 1_048_576.0);
+                        
+                        // Show breakdown by file type
+                        if !stats.type_counts.is_empty() {
+                            println!("  File types:");
+                            for (file_type, count) in &stats.type_counts {
+                                println!("    {:?}: {}", file_type, count);
+                            }
+                        }
+                        
+                        // Check if indexing is needed
+                        if stats.total_files == 0 && vault_path.exists() {
+                            println!("  ⚠️  Vault directory exists but no files indexed");
+                            println!("     Run indexing to populate the database");
+                        }
+                    }
+                    Err(e) => {
+                        println!("📊 Vault:");
+                        println!("  ❌ Failed to read vault statistics: {}", e);
+                        if !vault_path.exists() {
+                            println!("     Vault directory does not exist: {}", vault_path.display());
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                println!("📊 Vault:");
+                println!("  ❌ Failed to initialize indexer: {}", e);
+            }
+        }
         
         // AI status
         println!("\n🧠 AI Models:");
-        // TODO: Show loaded model status
-        println!("  Whisper: Ready");
-        println!("  Embeddings: Ready"); 
-        println!("  LLM: Ready");
+        let models_path = PathBuf::from(&self.config.ai.model_path);
+        if models_path.exists() {
+            let mut model_count = 0;
+            if let Ok(entries) = std::fs::read_dir(&models_path) {
+                for entry in entries.flatten() {
+                    if let Some(ext) = entry.path().extension() {
+                        if ext == "safetensors" || ext == "gguf" || ext == "bin" {
+                            model_count += 1;
+                            if let Some(name) = entry.path().file_stem() {
+                                println!("  📦 {}", name.to_string_lossy());
+                            }
+                        }
+                    }
+                }
+            }
+            if model_count == 0 {
+                println!("  ⚠️  No models found in {}", models_path.display());
+            }
+        } else {
+            println!("  ❌ Models directory not found: {}", models_path.display());
+        }
         
         // Signal status
         println!("\n📱 Signal:");
-        // TODO: Show Signal connection status
-        println!("  Status: Connected");
-        println!("  Phone: +1***-***-**90");
+        if self.config.signal.enabled {
+            if let Some(ref phone_number) = self.config.signal.phone_number {
+                if !phone_number.is_empty() {
+                    let masked_phone = mask_phone_number(phone_number);
+                    println!("  Status: Configured ({})", masked_phone);
+                } else {
+                    println!("  Status: ⚠️  Enabled but phone number is empty");
+                }
+            } else {
+                println!("  Status: ⚠️  Enabled but no phone number configured");
+            }
+        } else {
+            println!("  Status: Disabled");
+        }
         
-        println!("\n✅ System is healthy and ready!");
+        println!("\n✅ System ready for operation!");
         
+        Ok(())
+    }
+    
+    /// Index vault files for search
+    pub async fn index_vault(&self, force: bool, verbose: bool) -> Result<()> {
+        let vault_path = PathBuf::from(&self.config.vault.path);
+        let db_path = PathBuf::from(&self.config.database.path);
+
+        if !vault_path.exists() {
+            println!("❌ Vault directory does not exist: {}", vault_path.display());
+            println!("   Create the directory and add some files to get started.");
+            return Ok(());
+        }
+
+        println!("📁 Indexing vault: {}", vault_path.display());
+        let vault = vault::Vault::new(db_path, vault_path.clone()).await?;
+
+        let start_time = std::time::Instant::now();
+    let stats = vault.index_all(force, Some(|p: &std::path::Path| {
+            println!("  • {}", p.display());
+        })).await?;
+
+        let duration = start_time.elapsed();
+
+        println!("✅ Indexing completed in {:?}", duration);
+        println!("   📊 File scan: added={}, updated={}, deleted={}, skipped={}, errors={}",
+                 stats.files.added, stats.files.updated, stats.files.deleted, stats.files.skipped, stats.files.errors);
+        println!("   🧠 Content: docs={}, fts={}, embeddings={}, errors={}",
+                 stats.docs_indexed, stats.fts_docs, stats.embedding_docs, stats.errors);
+
+        if stats.docs_indexed > 0 {
+            println!("\n🔍 Try: cargo run -- query --semantic \"your search term\"");
+        }
+
         Ok(())
     }
     
@@ -296,6 +439,104 @@ impl NoteToAI {
         
         info!("Shutting down note-to-ai service");
         // TODO: Graceful shutdown of all services
+    }
+    
+    /// Create a demo AI response note in Obsidian format
+    pub async fn obsidian_demo(&self, query: &str) -> Result<()> {
+        use obsidian::{ObsidianManager, ObsidianConfig, create_demo_response};
+        
+        info!("Creating demo Obsidian AI response for query: {}", query);
+        
+        // Create Obsidian manager with config
+        let obsidian_config = ObsidianConfig {
+            vault_path: self.config.vault.path.clone(),
+            ..Default::default()
+        };
+        let manager = ObsidianManager::new(obsidian_config);
+        
+        // Create a demo response
+        let response_text = format!(
+            "Based on your query about '{}', here are the key insights from your knowledge base:\n\n\
+            ## Key Concepts\n\
+            1. **Quantum Superposition**: The ability of quantum systems to exist in multiple states simultaneously\n\
+            2. **Quantum Entanglement**: The phenomenon where quantum particles become interconnected\n\
+            3. **Quantum Gates**: The basic building blocks of quantum circuits\n\n\
+            ## Applications\n\
+            - Quantum machine learning algorithms\n\
+            - Cryptographic applications\n\
+            - Optimization problems\n\n\
+            ## Next Steps\n\
+            Consider exploring the intersection of quantum computing and artificial intelligence, \
+            as discussed in your recent research notes.",
+            query
+        );
+        
+        let demo_response = create_demo_response(query, &response_text);
+        
+        // Save the response
+        let note_path = manager.save_ai_response(demo_response).await?;
+        
+        println!("✅ Demo AI response created!");
+        println!("📝 File: {}", note_path.display());
+        println!("🔗 Open in Obsidian to see the formatted note with links and tags");
+        
+        Ok(())
+    }
+    
+    /// Create or update today's daily note
+    pub async fn obsidian_daily(&self, summary: &str) -> Result<()> {
+        use obsidian::{ObsidianManager, ObsidianConfig};
+        
+        info!("Adding interaction to daily note: {}", summary);
+        
+        // Create Obsidian manager with config
+        let obsidian_config = ObsidianConfig {
+            vault_path: self.config.vault.path.clone(),
+            ..Default::default()
+        };
+        let manager = ObsidianManager::new(obsidian_config);
+        
+        // Update daily note
+        let note_path = manager.append_to_daily_note(summary).await?;
+        
+        println!("✅ Daily note updated!");
+        println!("📝 File: {}", note_path.display());
+        println!("📅 Added interaction summary to today's daily note");
+        
+        Ok(())
+    }
+    
+    /// Scan vault for linkable notes
+    pub async fn obsidian_scan(&self) -> Result<()> {
+        use obsidian::{ObsidianManager, ObsidianConfig};
+        
+        info!("Scanning vault for Obsidian-linkable notes");
+        
+        // Create Obsidian manager with config
+        let obsidian_config = ObsidianConfig {
+            vault_path: self.config.vault.path.clone(),
+            ..Default::default()
+        };
+        let manager = ObsidianManager::new(obsidian_config);
+        
+        // Scan for files
+        let content = "quantum computing machine learning AI research"; // Sample content for testing
+        let related_notes = manager.find_related_notes(content).await?;
+        
+        println!("🔍 Vault scan results:");
+        println!("📁 Vault path: {}", self.config.vault.path.display());
+        
+        if related_notes.is_empty() {
+            println!("📝 No linkable notes found for sample content");
+            println!("💡 Add more .md files to your vault to see automatic linking in action");
+        } else {
+            println!("🔗 Found {} potentially linkable notes:", related_notes.len());
+            for note in &related_notes {
+                println!("   {}", note);
+            }
+        }
+        
+        Ok(())
     }
 }
 
@@ -328,6 +569,11 @@ async fn main() -> Result<()> {
         Some(Commands::Status) => {
             let app = NoteToAI::new(&cli.config).await?;
             app.show_status().await?;
+        }
+        
+        Some(Commands::Index { force, verbose }) => {
+            let app = NoteToAI::new(&cli.config).await?;
+            app.index_vault(force, verbose).await?;
         }
         
         Some(Commands::Models { action }) => {
@@ -367,6 +613,21 @@ async fn main() -> Result<()> {
                 SignalAction::Status => {
                     info!("Signal connection status");
                     // TODO: Show Signal status
+                }
+            }
+        }
+        
+        Some(Commands::Obsidian { action }) => {
+            let app = NoteToAI::new(&cli.config).await?;
+            match action {
+                ObsidianAction::Demo { query } => {
+                    app.obsidian_demo(&query).await?;
+                }
+                ObsidianAction::Daily { summary } => {
+                    app.obsidian_daily(&summary).await?;
+                }
+                ObsidianAction::Scan => {
+                    app.obsidian_scan().await?;
                 }
             }
         }
@@ -418,4 +679,13 @@ fn print_startup_banner() {
 ║  knowledge base powered by local AI models.                 ║
 ╚══════════════════════════════════════════════════════════════╝
 "#);
+}
+
+fn mask_phone_number(phone: &str) -> String {
+    if phone.len() > 4 {
+        let visible_end = &phone[phone.len()-2..];
+        format!("***-***-**{}", visible_end)
+    } else {
+        "***-***-****".to_string()
+    }
 }

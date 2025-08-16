@@ -10,6 +10,7 @@ pub struct Settings {
     pub swarm: SwarmConfig,
     pub signal: SignalConfig,
     pub database: DatabaseConfig,
+    pub obsidian: ObsidianConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +60,15 @@ pub struct SignalConfig {
 pub struct DatabaseConfig {
     pub path: PathBuf,
     pub encrypted: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObsidianConfig {
+    pub vault_path: PathBuf,
+    pub ai_response_template: String,
+    pub daily_note_template: String,
+    pub auto_link: bool,
+    pub default_tags: Vec<String>,
 }
 
 impl Settings {
@@ -114,6 +124,13 @@ mod tests {
             database: DatabaseConfig {
                 path: PathBuf::from("./db/notetoai.db"),
                 encrypted: true,
+            },
+            obsidian: ObsidianConfig {
+                vault_path: PathBuf::from("./vault"),
+                ai_response_template: "AI Responses/{{date}}/{{timestamp}} - {{query_summary}}".to_string(),
+                daily_note_template: "Daily Notes/{{date}}".to_string(),
+                auto_link: true,
+                default_tags: vec!["#ai-generated".to_string(), "#note-to-ai".to_string()],
             },
         };
 

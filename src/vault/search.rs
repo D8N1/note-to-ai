@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use anyhow::{Result, Context};
 use serde::{Deserialize, Serialize};
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, params, OptionalExtension};
 use tokio::sync::RwLock;
 use std::sync::Arc;
 use crate::vault::parser::{ParsedDocument, BlockType};
@@ -110,7 +110,7 @@ pub struct VectorSearchEngine {
 struct VectorIndex {
     documents: HashMap<String, IndexedDocument>,
     embeddings: HashMap<String, Vec<f32>>,
-    block_embeddings: HashMap<String, Vec<BlockEmbedding>>,
+    _block_embeddings: HashMap<String, Vec<BlockEmbedding>>,
     tag_index: HashMap<String, HashSet<String>>,
     title_index: HashMap<String, String>,
     link_graph: HashMap<String, HashSet<String>>,
@@ -133,15 +133,15 @@ struct IndexedBlock {
     pub content: String,
     pub start_pos: usize,
     pub end_pos: usize,
-    pub embedding_id: String,
+    pub _embedding_id: String,
 }
 
 #[derive(Debug, Clone)]
 struct BlockEmbedding {
-    pub block_id: String,
-    pub embedding: Vec<f32>,
-    pub content: String,
-    pub block_type: BlockType,
+    pub _block_id: String,
+    pub _embedding: Vec<f32>,
+    pub _content: String,
+    pub _block_type: BlockType,
 }
 
 impl VectorSearchEngine {
@@ -149,7 +149,7 @@ impl VectorSearchEngine {
         let index = VectorIndex {
             documents: HashMap::new(),
             embeddings: HashMap::new(),
-            block_embeddings: HashMap::new(),
+            _block_embeddings: HashMap::new(),
             tag_index: HashMap::new(),
             title_index: HashMap::new(),
             link_graph: HashMap::new(),
@@ -170,77 +170,80 @@ impl VectorSearchEngine {
     }
 
     async fn create_search_tables(&self) -> Result<()> {
-        let conn = Connection::open(&self.db_path)?;
+        let db_path = self.db_path.clone();
+        tokio::task::spawn_blocking(move || -> Result<()> {
+            let mut conn = Connection::open(&db_path)?;
+            let tx = conn.transaction()?;
 
-        // Document embeddings table
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS document_embeddings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                document_path TEXT UNIQUE NOT NULL,
-                embedding BLOB NOT NULL,
-                updated_at INTEGER NOT NULL
-            )",
-            [],
-        )?;
+            // Document embeddings table
+            tx.execute(
+                "CREATE TABLE IF NOT EXISTS document_embeddings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    document_path TEXT UNIQUE NOT NULL,
+                    embedding BLOB NOT NULL,
+                    updated_at INTEGER NOT NULL
+                )",
+                [],
+            )?;
 
-        // Block embeddings table
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS block_embeddings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                document_path TEXT NOT NULL,
-                block_id TEXT UNIQUE NOT NULL,
-                block_type TEXT NOT NULL,
-                content TEXT NOT NULL,
-                embedding BLOB NOT NULL,
-                start_pos INTEGER NOT NULL,
-                end_pos INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL
-            )",
-            [],
-        )?;
+            // Block embeddings table
+            tx.execute(
+                "CREATE TABLE IF NOT EXISTS block_embeddings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    document_path TEXT NOT NULL,
+                    block_id TEXT UNIQUE NOT NULL,
+                    block_type TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    embedding BLOB NOT NULL,
+                    start_pos INTEGER NOT NULL,
+                    end_pos INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                )",
+                [],
+            )?;
 
-        // Search index for fast text queries
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS search_index (
-                document_path TEXT PRIMARY KEY,
-                title TEXT NOT NULL,
-                content TEXT NOT NULL,
-                tags TEXT NOT NULL,
-                modified INTEGER NOT NULL,
-                word_count INTEGER NOT NULL
-            )",
-            [],
-        )?;
+            // Search index for fast text queries
+            tx.execute(
+                "CREATE TABLE IF NOT EXISTS search_index (
+                    document_path TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    tags TEXT NOT NULL,
+                    modified INTEGER NOT NULL,
+                    word_count INTEGER NOT NULL
+                )",
+                [],
+            )?;
 
-        // Create FTS5 table for full-text search
-        conn.execute(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
-                title, content, tags, content=search_index, content_rowid=rowid
-            )",
-            [],
-        )?;
+            // Create FTS5 table for full-text search
+            tx.execute(
+                "CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
+                    title, content, tags, content=search_index, content_rowid=rowid
+                )",
+                [],
+            )?;
 
-        // Indexes
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_doc_embeddings_path ON document_embeddings(document_path)", [])?;
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_block_embeddings_doc ON block_embeddings(document_path)", [])?;
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_search_tags ON search_index(tags)", [])?;
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_search_modified ON search_index(modified)", [])?;
+            // Indexes
+            tx.execute("CREATE INDEX IF NOT EXISTS idx_doc_embeddings_path ON document_embeddings(document_path)", [])?;
+            tx.execute("CREATE INDEX IF NOT EXISTS idx_block_embeddings_doc ON block_embeddings(document_path)", [])?;
+            tx.execute("CREATE INDEX IF NOT EXISTS idx_search_tags ON search_index(tags)", [])?;
+            tx.execute("CREATE INDEX IF NOT EXISTS idx_search_modified ON search_index(modified)", [])?;
+
+            tx.commit()?;
+            Ok(())
+        })
+        .await
+        .context("Failed to create search tables")??;
 
         Ok(())
     }
 
     pub async fn index_document(&self, document: &ParsedDocument, embedding: &EmbeddingVector) -> Result<()> {
         let doc_id = document.path.to_string_lossy().to_string();
-        
-        // Store document embedding
-        self.store_document_embedding(&doc_id, &embedding.vector).await?;
-        
-        // Store block embeddings (if available)
-        if let Some(block_embeddings) = &embedding.block_embeddings {
-            self.store_block_embeddings(&doc_id, block_embeddings).await?;
-        }
+    // Persist all DB writes in a single transaction to reduce overhead
+    self.persist_document_transactional(&doc_id, document, embedding).await?;
 
-        // Update in-memory index
+    // Update in-memory index
         let mut index = self.index.write().await;
         
         let indexed_doc = IndexedDocument {
@@ -256,7 +259,7 @@ impl VectorSearchEngine {
                     content: block.content.clone(),
                     start_pos: block.position.start,
                     end_pos: block.position.end,
-                    embedding_id: format!("{}_{}", doc_id, i),
+                    _embedding_id: format!("{}_{}", doc_id, i),
                 }
             }).collect(),
         };
@@ -280,97 +283,253 @@ impl VectorSearchEngine {
                 .insert(doc_id.clone());
         }
 
-        // Update search index
-        self.update_search_index(document).await?;
+    // search_index and FTS were already updated transactionally
 
         self.logger.debug(&format!("Indexed document: {}", document.path.display()));
         Ok(())
     }
 
-    async fn store_document_embedding(&self, doc_id: &str, embedding: &[f32]) -> Result<()> {
-        let conn = Connection::open(&self.db_path)?;
-        let embedding_bytes = self.serialize_embedding(embedding)?;
-        let now = chrono::Utc::now().timestamp();
+    async fn persist_document_transactional(
+        &self,
+        doc_id: &str,
+        document: &ParsedDocument,
+        embedding: &EmbeddingVector,
+    ) -> Result<()> {
+        let db_path = self.db_path.clone();
+        let doc_id = doc_id.to_string();
+        let embedding_bytes = self.serialize_embedding(&embedding.vector)?;
+        let blocks_opt = embedding.block_embeddings.clone();
+        let doc_path = document.path.to_string_lossy().to_string();
+        let title = document.title.clone();
+        let content = document.plain_text.clone();
+        let tags_json = serde_json::to_string(&document.tags)?;
+        let modified = document.metadata.last_parsed.timestamp();
+        let word_count = document.metadata.word_count as i64;
 
-        conn.execute(
-            "INSERT OR REPLACE INTO document_embeddings (document_path, embedding, updated_at)
-             VALUES (?1, ?2, ?3)",
-            params![doc_id, embedding_bytes, now],
-        )?;
+        tokio::task::spawn_blocking(move || -> Result<()> {
+            let mut conn = Connection::open(&db_path)?;
+            let tx = conn.transaction()?;
+            let now = chrono::Utc::now().timestamp();
 
-        Ok(())
-    }
+            // Document embedding upsert
+            tx.execute(
+                "INSERT OR REPLACE INTO document_embeddings (document_path, embedding, updated_at)
+                 VALUES (?1, ?2, ?3)",
+                params![doc_id, embedding_bytes, now],
+            )?;
 
-    async fn store_block_embeddings(&self, doc_id: &str, block_embeddings: &[crate::vault::embeddings::BlockEmbedding]) -> Result<()> {
-        let conn = Connection::open(&self.db_path)?;
-        let now = chrono::Utc::now().timestamp();
+            // Block embeddings replace-all for doc
+            tx.execute(
+                "DELETE FROM block_embeddings WHERE document_path = ?1",
+                params![doc_path],
+            )?;
 
-        // Clear existing block embeddings for this document
-        conn.execute(
-            "DELETE FROM block_embeddings WHERE document_path = ?1",
-            params![doc_id],
-        )?;
+            if let Some(block_embeddings) = blocks_opt {
+                let mut stmt = tx.prepare(
+                    "INSERT INTO block_embeddings 
+                     (document_path, block_id, block_type, content, embedding, start_pos, end_pos, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+                )?;
+                for (i, block_emb) in block_embeddings.iter().enumerate() {
+                    let block_id = format!("{}_{}", doc_path, i);
+                    let embedding_bytes = {
+                        let mut v = Vec::with_capacity(block_emb.vector.len() * 4);
+                        for &val in &block_emb.vector { v.extend_from_slice(&val.to_le_bytes()); }
+                        v
+                    };
+                    let block_type = serde_json::to_string(&BlockType::Paragraph)?; // TODO carry real type
+                    let start_pos = block_emb.start_pos as i64;
+                    let end_pos = block_emb.end_pos as i64;
+                    stmt.execute(params![
+                        doc_path,
+                        block_id,
+                        block_type,
+                        block_emb.content,
+                        embedding_bytes,
+                        start_pos,
+                        end_pos,
+                        now
+                    ])?;
+                }
+            }
 
-        // Insert new block embeddings
-        for (i, block_emb) in block_embeddings.iter().enumerate() {
-            let block_id = format!("{}_{}", doc_id, i);
-            let embedding_bytes = self.serialize_embedding(&block_emb.vector)?;
-
-            conn.execute(
-                "INSERT INTO block_embeddings 
-                 (document_path, block_id, block_type, content, embedding, start_pos, end_pos, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            // Upsert into search_index
+            tx.execute(
+                "INSERT OR REPLACE INTO search_index 
+                 (document_path, title, content, tags, modified, word_count)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 params![
-                    doc_id,
-                    block_id,
-                    serde_json::to_string(&BlockType::Paragraph)?, // Default, should be passed properly
-                    block_emb.content.clone(),
-                    embedding_bytes,
-                    0, // start_pos - should be passed from block
-                    0, // end_pos - should be passed from block
-                    now
+                    doc_path,
+                    title,
+                    content,
+                    tags_json,
+                    modified,
+                    word_count
                 ],
             )?;
-        }
+
+            // Sync into FTS using the current rowid
+            let rowid: i64 = tx
+                .query_row(
+                    "SELECT rowid FROM search_index WHERE document_path = ?1",
+                    params![doc_path],
+                    |row| row.get(0),
+                )?;
+
+            tx.execute(
+                "INSERT OR REPLACE INTO search_fts(rowid, title, content, tags) VALUES (?1, ?2, ?3, ?4)",
+                params![rowid, title, content, tags_json],
+            )?;
+
+            tx.commit()?;
+            Ok(())
+        })
+        .await
+        .context("Failed to persist document transactionally")??;
 
         Ok(())
     }
 
-    async fn update_search_index(&self, document: &ParsedDocument) -> Result<()> {
-        let conn = Connection::open(&self.db_path)?;
-        
-        let tags_json = serde_json::to_string(&document.tags)?;
-        
-        conn.execute(
-            "INSERT OR REPLACE INTO search_index 
-             (document_path, title, content, tags, modified, word_count)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
-                document.path.to_string_lossy(),
-                document.title,
-                document.plain_text,
-                tags_json,
-                document.metadata.last_parsed.timestamp(),
-                document.metadata.word_count
-            ],
-        )?;
+    #[allow(dead_code)]
+    async fn store_document_embedding(&self, doc_id: &str, embedding: &[f32]) -> Result<()> {
+        let db_path = self.db_path.clone();
+        let embedding_bytes = self.serialize_embedding(embedding)?;
+        let doc_id = doc_id.to_string();
+        tokio::task::spawn_blocking(move || -> Result<()> {
+            let mut conn = Connection::open(&db_path)?;
+            let tx = conn.transaction()?;
+            let now = chrono::Utc::now().timestamp();
 
-        // Update FTS index
-        conn.execute(
-            "INSERT OR REPLACE INTO search_fts (title, content, tags)
-             VALUES (?1, ?2, ?3)",
-            params![
-                document.title,
-                document.plain_text,
-                tags_json
-            ],
-        )?;
+            tx.execute(
+                "INSERT OR REPLACE INTO document_embeddings (document_path, embedding, updated_at)
+                 VALUES (?1, ?2, ?3)",
+                params![doc_id, embedding_bytes, now],
+            )?;
+
+            tx.commit()?;
+            Ok(())
+        })
+        .await
+        .context("Failed to store document embedding")??;
+
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    async fn store_block_embeddings(&self, doc_id: &str, block_embeddings: &[crate::vault::embeddings::BlockEmbedding]) -> Result<()> {
+        let db_path = self.db_path.clone();
+        let doc_id = doc_id.to_string();
+        // Prepare data outside the blocking task
+        let prepared: Vec<(String, Vec<u8>, String, i64, i64)> = block_embeddings
+            .iter()
+            .enumerate()
+            .map(|(i, block_emb)| {
+                let block_id = format!("{}_{}", doc_id, i);
+                let embedding_bytes = self.serialize_embedding(&block_emb.vector)?;
+                let content = block_emb.content.clone();
+                let start_pos = 0i64; // TODO: carry real positions
+                let end_pos = 0i64;
+                Ok((block_id, embedding_bytes, content, start_pos, end_pos))
+            })
+            .collect::<Result<_>>()?;
+
+        tokio::task::spawn_blocking(move || -> Result<()> {
+            let mut conn = Connection::open(&db_path)?;
+            let tx = conn.transaction()?;
+            let now = chrono::Utc::now().timestamp();
+
+            // Clear existing block embeddings for this document
+            tx.execute(
+                "DELETE FROM block_embeddings WHERE document_path = ?1",
+                params![doc_id],
+            )?;
+
+            // Insert new block embeddings
+            {
+                let mut stmt = tx.prepare(
+                    "INSERT INTO block_embeddings 
+                     (document_path, block_id, block_type, content, embedding, start_pos, end_pos, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+                )?;
+
+                for (block_id, embedding_bytes, content, start_pos, end_pos) in prepared {
+                    stmt.execute(params![
+                        doc_id,
+                        block_id,
+                        serde_json::to_string(&BlockType::Paragraph)?, // Default placeholder
+                        content,
+                        embedding_bytes,
+                        start_pos,
+                        end_pos,
+                        now
+                    ])?;
+                }
+            } // drop stmt before commit
+
+            tx.commit()?;
+            Ok(())
+        })
+        .await
+        .context("Failed to store block embeddings")??;
+
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    async fn update_search_index(&self, document: &ParsedDocument) -> Result<()> {
+        // Prepare values outside the blocking task
+        let db_path = self.db_path.clone();
+        let doc_path = document.path.to_string_lossy().to_string();
+        let title = document.title.clone();
+        let content = document.plain_text.clone();
+        let tags_json = serde_json::to_string(&document.tags)?;
+        let modified = document.metadata.last_parsed.timestamp();
+        let word_count = document.metadata.word_count as i64;
+
+        tokio::task::spawn_blocking(move || -> Result<()> {
+            let mut conn = Connection::open(&db_path)?;
+            let tx = conn.transaction()?;
+
+            // Upsert into search_index
+            tx.execute(
+                "INSERT OR REPLACE INTO search_index 
+                 (document_path, title, content, tags, modified, word_count)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    doc_path,
+                    title,
+                    content,
+                    tags_json,
+                    modified,
+                    word_count
+                ],
+            )?;
+
+            // Ensure FTS row is in sync with the correct rowid from search_index
+            let rowid: i64 = tx
+                .query_row(
+                    "SELECT rowid FROM search_index WHERE document_path = ?1",
+                    params![doc_path],
+                    |row| row.get(0),
+                )
+                .context("Failed to fetch rowid for FTS sync")?;
+
+            tx.execute(
+                "INSERT OR REPLACE INTO search_fts(rowid, title, content, tags) VALUES (?1, ?2, ?3, ?4)",
+                params![rowid, title, content, tags_json],
+            )?;
+
+            tx.commit()?;
+            Ok(())
+        })
+        .await
+        .context("Failed to update search index")??;
 
         Ok(())
     }
 
     pub async fn search(&self, query: &SearchQuery) -> Result<Vec<SearchResult>> {
-        let mut results = Vec::new();
+    let mut results = Vec::new();
 
         if query.options.hybrid_search {
             // Combine multiple search strategies
@@ -378,10 +537,11 @@ impl VectorSearchEngine {
             let text_results = self.text_search(&query.text, &query.options).await?;
             let tag_results = self.tag_search(&query.filters.tags, &query.options).await?;
 
-            results = self.merge_search_results(semantic_results, text_results, tag_results, &query.options)?;
+            let merged_results = self.merge_search_results(semantic_results, text_results, tag_results, &query.options)?;
+            results.extend(merged_results);
         } else {
             // Use primary search method
-            results = self.semantic_search(&query.text, &query.options).await?;
+            results.extend(self.semantic_search(&query.text, &query.options).await?);
         }
 
         // Apply filters
@@ -442,30 +602,44 @@ impl VectorSearchEngine {
     }
 
     async fn text_search(&self, query: &str, options: &SearchOptions) -> Result<Vec<SearchResult>> {
-        let conn = Connection::open(&self.db_path)?;
-        
-        let mut stmt = conn.prepare(
-            "SELECT document_path, title, content, tags, modified, word_count, 
-                    bm25(search_fts) as score
-             FROM search_fts 
-             WHERE search_fts MATCH ?1
-             ORDER BY score
-             LIMIT ?2"
-        )?;
+        let db_path = self.db_path.clone();
+        let q = query.to_string();
+        let limit = options.limit as i64;
+        let rows: Vec<(String, String, String, String, i64, i64, f64)> = tokio::task::spawn_blocking(move || -> Result<_> {
+            let conn = Connection::open(&db_path)?;
+            let mut stmt = conn.prepare(
+                "SELECT document_path, title, content, tags, modified, word_count, 
+                        bm25(search_fts) as score
+                 FROM search_fts 
+                 WHERE search_fts MATCH ?1
+                 ORDER BY score
+                 LIMIT ?2"
+            )?;
 
-        let rows = stmt.query_map(params![query, options.limit], |row| {
-            let path: String = row.get(0)?;
-            let title: String = row.get(1)?;
-            let content: String = row.get(2)?;
-            let tags_json: String = row.get(3)?;
-            let modified: i64 = row.get(4)?;
-            let word_count: i64 = row.get(5)?;
-            let score: f64 = row.get(6)?;
+            let mapped = stmt.query_map(params![q, limit], |row| {
+                let path: String = row.get(0)?;
+                let title: String = row.get(1)?;
+                let content: String = row.get(2)?;
+                let tags_json: String = row.get(3)?;
+                let modified: i64 = row.get(4)?;
+                let word_count: i64 = row.get(5)?;
+                let score: f64 = row.get(6)?;
+                Ok((path, title, content, tags_json, modified, word_count, score))
+            })?;
 
-            let tags: Vec<String> = serde_json::from_str(&tags_json)
-                .unwrap_or_default();
+            let mut out = Vec::new();
+            for row in mapped {
+                out.push(row?);
+            }
+            Ok(out)
+        })
+        .await
+        .context("Failed to execute text search")??;
 
-            Ok(SearchResult {
+        let mut results = Vec::new();
+        for (path, title, content, tags_json, modified, word_count, score) in rows {
+            let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
+            results.push(SearchResult {
                 document: SearchDocument {
                     path: PathBuf::from(path),
                     title: title.clone(),
@@ -483,18 +657,13 @@ impl VectorSearchEngine {
                     backlinks: Vec::new(),
                     related_tags: Vec::new(),
                 },
-            })
-        })?;
-
-        let mut results = Vec::new();
-        for row in rows {
-            results.push(row?);
+            });
         }
 
         Ok(results)
     }
 
-    async fn tag_search(&self, tags: &[String], options: &SearchOptions) -> Result<Vec<SearchResult>> {
+    async fn tag_search(&self, tags: &[String], _options: &SearchOptions) -> Result<Vec<SearchResult>> {
         if tags.is_empty() {
             return Ok(Vec::new());
         }
@@ -540,7 +709,7 @@ impl VectorSearchEngine {
         semantic: Vec<SearchResult>,
         text: Vec<SearchResult>,
         tag: Vec<SearchResult>,
-        options: &SearchOptions,
+    _options: &SearchOptions,
     ) -> Result<Vec<SearchResult>> {
         let mut merged = HashMap::new();
 
@@ -725,6 +894,7 @@ impl VectorSearchEngine {
         Ok(bytes)
     }
 
+    #[allow(dead_code)]
     fn deserialize_embedding(&self, bytes: &[u8]) -> Result<Vec<f32>> {
         if bytes.len() % 4 != 0 {
             return Err(anyhow::anyhow!("Invalid embedding byte length"));
@@ -739,38 +909,45 @@ impl VectorSearchEngine {
     }
 
     async fn load_index_from_db(&self) -> Result<()> {
-        let conn = Connection::open(&self.db_path)?;
+        let db_path = self.db_path.clone();
+        let rows: Vec<(String, String, String, String, i64, i64)> = tokio::task::spawn_blocking(move || -> Result<_> {
+            let conn = Connection::open(&db_path)?;
+            let mut stmt = conn.prepare(
+                "SELECT document_path, title, content, tags, modified, word_count FROM search_index"
+            )?;
+
+            let mapped = stmt.query_map([], |row| {
+                let path: String = row.get(0)?;
+                let title: String = row.get(1)?;
+                let content: String = row.get(2)?;
+                let tags_json: String = row.get(3)?;
+                let modified: i64 = row.get(4)?;
+                let word_count: i64 = row.get(5)?;
+                Ok((path, title, content, tags_json, modified, word_count))
+            })?;
+
+            let mut out = Vec::new();
+            for row in mapped {
+                out.push(row?);
+            }
+            Ok(out)
+        })
+        .await
+        .context("Failed to load index from DB")??;
+
         let mut index = self.index.write().await;
 
-        // Load documents from search index
-        let mut stmt = conn.prepare(
-            "SELECT document_path, title, content, tags, modified, word_count FROM search_index"
-        )?;
-
-        let rows = stmt.query_map([], |row| {
-            let path: String = row.get(0)?;
-            let title: String = row.get(1)?;
-            let content: String = row.get(2)?;
-            let tags_json: String = row.get(3)?;
-            let modified: i64 = row.get(4)?;
-            let word_count: i64 = row.get(5)?;
-
-            let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
-
-            Ok((path, title, content, tags, modified as u64, word_count as usize))
-        })?;
-
-        for row in rows {
-            let (path_str, title, content, tags, modified, word_count) = row?;
+        for (path_str, title, content, tags_json, modified, word_count) in rows {
             let path = PathBuf::from(&path_str);
+            let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
 
             let indexed_doc = IndexedDocument {
                 path: path.clone(),
                 title: title.clone(),
                 content,
                 tags: tags.clone(),
-                modified,
-                word_count,
+                modified: modified as u64,
+                word_count: word_count as usize,
                 blocks: Vec::new(), // Will be populated separately if needed
             };
 
@@ -778,7 +955,9 @@ impl VectorSearchEngine {
             index.title_index.insert(title, path_str.clone());
 
             for tag in tags {
-                index.tag_index.entry(tag)
+                index
+                    .tag_index
+                    .entry(tag)
                     .or_insert_with(HashSet::new)
                     .insert(path_str.clone());
             }
@@ -789,21 +968,44 @@ impl VectorSearchEngine {
     }
 
     pub async fn remove_document(&self, path: &PathBuf) -> Result<()> {
-        let doc_id = path.to_string_lossy().to_string();
-        
-        // Remove from database
-        let conn = Connection::open(&self.db_path)?;
-        conn.execute("DELETE FROM document_embeddings WHERE document_path = ?1", params![doc_id])?;
-        conn.execute("DELETE FROM block_embeddings WHERE document_path = ?1", params![doc_id])?;
-        conn.execute("DELETE FROM search_index WHERE document_path = ?1", params![doc_id])?;
-        conn.execute("DELETE FROM search_fts WHERE rowid IN (SELECT rowid FROM search_index WHERE document_path = ?1)", params![doc_id])?;
+    let doc_id = path.to_string_lossy().to_string();
+    let db_path = self.db_path.clone();
+    let doc_id_for_db = doc_id.clone();
+
+        // Remove from database using a transaction and correct FTS ordering
+    tokio::task::spawn_blocking(move || -> Result<()> {
+            let mut conn = Connection::open(&db_path)?;
+            let tx = conn.transaction()?;
+
+            // Find rowid before deleting from search_index
+        let rowid: Option<i64> = tx
+                .query_row(
+                    "SELECT rowid FROM search_index WHERE document_path = ?1",
+            params![doc_id_for_db],
+                    |row| row.get(0),
+                )
+                .optional()?;
+
+            if let Some(rid) = rowid {
+                tx.execute("DELETE FROM search_fts WHERE rowid = ?1", params![rid])?;
+            }
+
+            tx.execute("DELETE FROM document_embeddings WHERE document_path = ?1", params![doc_id_for_db])?;
+            tx.execute("DELETE FROM block_embeddings WHERE document_path = ?1", params![doc_id_for_db])?;
+            tx.execute("DELETE FROM search_index WHERE document_path = ?1", params![doc_id_for_db])?;
+
+            tx.commit()?;
+            Ok(())
+        })
+        .await
+        .context("Failed to remove document from DB")??;
 
         // Remove from in-memory index
         let mut index = self.index.write().await;
         if let Some(doc) = index.documents.remove(&doc_id) {
             index.embeddings.remove(&doc_id);
             index.title_index.remove(&doc.title);
-            
+
             for tag in &doc.tags {
                 if let Some(tag_docs) = index.tag_index.get_mut(tag) {
                     tag_docs.remove(&doc_id);

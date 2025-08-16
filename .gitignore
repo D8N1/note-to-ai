@@ -46,20 +46,96 @@ tmp/
 # Environment and secrets
 .env
 .env.local
+.env.production
 secrets/
 keys/
+api_keys.toml
+
+# Database files (exclude local development databases)
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+database.db
+notetoai.db
+
+# AI/ML temporary files
+embeddings_cache/
+vector_cache/
+model_cache/
+*.faiss
+*.ann
+*.index
+
+# Signal integration files (sensitive)
+signal_credentials/
+signal_keys/
+signal_session/
+.signal_store/
 
 # Testing artifacts
 coverage/
 test-results/
+test_output/
+benchmark_results/
+performance_logs/
 
 # Documentation builds
 docs/build/
 site/
+book/
 
 # Rust specific
 **/*.rs.bk
 *.pdb
+
+# Vault files that might contain sensitive data
+vault/private/
+vault/.obsidian/
+vault/attachments/
+vault/temp/
+
+# IPFS and P2P networking
+.ipfs/
+ipfs_data/
+peer_data/
+swarm_keys/
+
+# Crypto and security files
+*.pem
+*.key
+*.crt
+*.p12
+keystore/
+wallet/
+
+# OS specific files
+Thumbs.db
+Desktop.ini
+._*
+
+# Editor temporary files
+*.sublime-*
+*.atom-*
+.vim/
+.nvim/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# Python cache (if using Python tooling)
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Node.js (if using JS tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Keep important files (override patterns above)
 !models/model_registry.toml
@@ -68,3 +144,5 @@ site/
 !handOFF.txt
 !README.md
 !code_summary.txt
+!vault/README.md
+!vault/*.md

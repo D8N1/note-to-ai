@@ -263,6 +263,11 @@ impl VaultIndexer {
         Ok(files)
     }
 
+    /// Public method to list all files in the vault applying ignore rules
+    pub fn list_files(&self) -> Result<Vec<PathBuf>> {
+        self.scan_vault_files()
+    }
+
     fn should_ignore_file(&self, path: &Path) -> bool {
         // Check ignore patterns
         for component in path.components() {
@@ -291,7 +296,7 @@ impl VaultIndexer {
         false
     }
 
-    async fn get_file_index(&self, path: &Path) -> Result<Option<FileIndex>> {
+    pub async fn get_file_index(&self, path: &Path) -> Result<Option<FileIndex>> {
         let conn = Connection::open(&self.db_path)?;
         
         let path_str = path.to_string_lossy();
@@ -488,7 +493,7 @@ impl VaultIndexer {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct IndexStats {
     pub added: usize,
     pub updated: usize,

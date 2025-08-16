@@ -1,9 +1,16 @@
 # note-to-ai
+[![Project Status: WIP](https://img.shields.io/badge/status-WIP-orange)](./STATUS.md)
 > *Transform your Signal "Note to Self" into an AI-powered knowledge base and personal assistant*
 
 **Your most private thoughts deserve the most private AI.**
 
 note-to-ai bridges the gap between your casual voice notes and professional-grade intelligence briefings. Send a voice message to Signal's "Note to Self", and receive back a structured, searchable knowledge base with AI-generated insights — all processed locally on your M1 MacBook.
+
+## Elevator pitch
+
+note-to-ai turns Signal’s “Note to Self” into a private, on-device AI knowledge base. It transcribes voice notes, parses markdown, and indexes everything locally with hybrid full-text + vector search—no cloud, no data leaves the device. It’s fast, offline-first, and integrates cleanly with Obsidian for power users. The result: users can ask natural questions and instantly surface past ideas, messages, and files—while preserving Signal’s core promise of privacy and security. It’s an open, modular foundation to showcase private AI features inside Signal without compromising trust.
+
+> Status: Work-in-Progress. See [STATUS.md](./STATUS.md) for current gaps and planned improvements.
 
 ## 🎯 The Value Proposition
 
