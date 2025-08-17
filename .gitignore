@@ -3,6 +3,7 @@
 *Research*.txt
 Local*.txt
 local*.txt
+attested_sensor_research.txt
 
 # Backup files (keep local)
 *.tar.gz
@@ -13,6 +14,10 @@ local*.txt
 # Build artifacts
 /target/
 Cargo.lock
+
+# Build cache and metadata
+.rustc_info.json
+target/.rustc_info.json
 
 # Cache directories
 huggingface_cache/
@@ -50,6 +55,16 @@ tmp/
 secrets/
 keys/
 api_keys.toml
+
+# Cryptographic keys and certificates
+*.key
+*.pub
+*.pem
+*.crt
+*.p12
+keystore/
+wallet/
+attest_ed25519.*
 
 # Database files (exclude local development databases)
 *.db
@@ -96,6 +111,9 @@ vault/private/
 vault/.obsidian/
 vault/attachments/
 vault/temp/
+vault/.DS_Store
+vault/daily-notes-*.md
+vault/meeting-*.md
 
 # IPFS and P2P networking
 .ipfs/
@@ -110,6 +128,9 @@ swarm_keys/
 *.p12
 keystore/
 wallet/
+
+# Configuration files that may contain sensitive data
+config/config.toml
 
 # OS specific files
 Thumbs.db
@@ -146,3 +167,6 @@ yarn-error.log*
 !code_summary.txt
 !vault/README.md
 !vault/*.md
+!config/.env.template
+!vault/ai-training-best-practices.md
+!vault/quantum-computing-notes.md
