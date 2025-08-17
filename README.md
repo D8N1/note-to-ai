@@ -1,5 +1,8 @@
-# note-to-note-to-ai turns Signal's "Note to Self" into a private, on-device AI knowledge base. It transcribes voice notes, parses markdown, and indexes everything locally with hybrid full-text + vector search. It's fast, offline-first, and integrates cleanly with Obsidian for power users. The result: users can maintain a daily "President's Brief" for strategic consumption, leading to intelligent prompt generation and targeted research that economizes external API calls to other LLMs. It's an open, modular foundation to showcase private AI features inside Signal without compromising trust.ote-to-ai turns Signal's "Note to Self" into a private, on-device AI knowledge base. It transcribes voice notes, parses markdown, and indexes everything locally with hybrid full-text + vector search. It's fast, offline-first, and integrates cleanly with Obsidian for power users. The result: users can maintain a daily "President's Brief" for strategic consumption, leading to intelligent prompt generation and targeted research that economizes external API calls to other LLMs. It's an open, modular foundation to showcase private AI features inside Signal without compromising trust.i
+# note-to-ai
+
 [![Project Status: WIP](https://img.shields.io/badge/status-WIP-orange)](./STATUS.md)
+
+Transform Signal's "Note to Self" into a private AI knowledge base. Transcribe voice notes, parse markdown, and maintain executive-grade "President's Briefs" with local hybrid search—all processed on-device. Generate intelligent prompts and strategic research summaries that economize external LLM API calls while preserving Signal's trust model.
 > *Transform your Signal "Note to Self" into an AI-powered knowledge base and personal assistant*
 
 **Your most private thoughts deserve the most private AI.**
