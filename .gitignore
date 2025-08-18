@@ -115,6 +115,19 @@ vault/.DS_Store
 vault/daily-notes-*.md
 vault/meeting-*.md
 
+# Internal documentation and communication (keep local)
+*IMPLEMENTATION*.md
+*STATUS*.md
+*BRIEFING*.md
+*ARCHITECTURE*.md
+*INTEGRATION*.md
+*COMPLETION*.md
+*SUCCESS*.md
+Tech_Lead_Briefs/
+circuits/
+demo_ai_agents.sh
+test_integration.sh
+
 # IPFS and P2P networking
 .ipfs/
 ipfs_data/
