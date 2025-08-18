@@ -1,0 +1,831 @@
+// src/signal/conversational_assistant.rs
+// Humane Signal integration that feels like talking to a knowledgeable assistant
+
+use crate::identity::zkpassport_migration::MigratedZkPassport;
+use crate::ai::context::ConversationContext;
+use crate::vault::semantic_search::SemanticSearchEngine;
+use serde::{Deserialize, Serialize};
+use std::time::Duration;
+use chrono::{DateTime, Utc};
+
+pub struct ConversationalAssistant {
+    zkpassport: MigratedZkPassport,
+    context_engine: ConversationContext,
+    search_engine: SemanticSearchEngine,
+    user_preferences: UserPreferences,
+    conversation_state: ConversationState,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserPreferences {
+    pub briefing_style: BriefingStyle,
+    pub proactive_insights: bool,
+    pub interruption_threshold: InterruptionLevel,
+    pub identity_verification_preference: IdentityVerificationPreference,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BriefingStyle {
+    Executive,      // Concise, strategic, action-oriented
+    Detailed,       // Comprehensive analysis with context
+    Conversational, // Natural, friendly tone
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum InterruptionLevel {
+    Minimal,   // Only critical insights
+    Balanced,  // Important patterns and connections
+    Proactive, // Helpful suggestions and context
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum IdentityVerificationPreference {
+    Automatic,     // Verify silently when needed
+    Prompt,        // Ask before verification
+    Manual,        // User initiates verification
+}
+
+#[derive(Debug, Clone)]
+pub struct ConversationState {
+    current_context: Vec<String>,
+    recent_topics: Vec<Topic>,
+    pending_actions: Vec<ActionItem>,
+    research_in_progress: Option<ResearchTask>,
+    last_interaction: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Topic {
+    pub name: String,
+    pub mentions: u32,
+    pub last_mentioned: DateTime<Utc>,
+    pub sentiment: Sentiment,
+    pub urgency: UrgencyLevel,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Sentiment {
+    Positive, Neutral, Concerning, Critical
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum UrgencyLevel {
+    Low, Medium, High, Critical
+}
+
+impl ConversationalAssistant {
+    pub async fn new() -> Result<Self, AssistantError> {
+        let device_caps = crate::identity::proving_backend::DeviceCapabilities::detect_current_device();
+        
+        Ok(Self {
+            zkpassport: MigratedZkPassport::new(device_caps).await?,
+            context_engine: ConversationContext::new().await?,
+            search_engine: SemanticSearchEngine::new().await?,
+            user_preferences: UserPreferences::default(),
+            conversation_state: ConversationState::new(),
+        })
+    }
+    
+    // Main message processing pipeline
+    pub async fn process_signal_message(
+        &mut self,
+        message: SignalMessage,
+    ) -> Result<AssistantResponse, AssistantError> {
+        // 1. Analyze intent and extract context
+        let intent = self.analyze_intent(&message).await?;
+        
+        // 2. Check if identity verification is needed
+        if self.requires_identity_verification(&intent) {
+            if let Some(verification_response) = self.handle_identity_verification(&intent).await? {
+                return Ok(verification_response);
+            }
+        }
+        
+        // 3. Process based on intent type
+        let response = match intent.intent_type {
+            IntentType::Setup => self.handle_setup(&message).await?,
+            IntentType::VoiceNote => self.handle_voice_note(&message).await?,
+            IntentType::Research => self.handle_research_request(&message).await?,
+            IntentType::Query => self.handle_query(&message).await?,
+            IntentType::Confidential => self.handle_confidential_request(&message).await?,
+            IntentType::Casual => self.handle_casual_conversation(&message).await?,
+        };
+        
+        // 4. Update conversation state
+        self.update_conversation_state(&message, &response).await?;
+        
+        // 5. Check for proactive insights
+        if self.user_preferences.proactive_insights {
+            if let Some(insight) = self.generate_proactive_insight().await? {
+                return Ok(response.with_insight(insight));
+            }
+        }
+        
+        Ok(response)
+    }
+    
+    // Intent analysis using local AI
+    async fn analyze_intent(&self, message: &SignalMessage) -> Result<Intent, AssistantError> {
+        let content = match &message.content {
+            MessageContent::Text(text) => text.clone(),
+            MessageContent::Voice(audio) => {
+                // Transcribe using Whisper
+                self.transcribe_audio(audio).await?
+            }
+            MessageContent::Image(_) => {
+                return Ok(Intent {
+                    intent_type: IntentType::Casual,
+                    confidence: 0.5,
+                    extracted_entities: Vec::new(),
+                    sensitive_content: false,
+                });
+            }
+        };
+        
+        // Use Hermes 3 8B for intent classification
+        let intent_analysis = self.context_engine.analyze_intent(&content).await?;
+        
+        Ok(Intent {
+            intent_type: self.classify_intent(&content, &intent_analysis),
+            confidence: intent_analysis.confidence,
+            extracted_entities: intent_analysis.entities,
+            sensitive_content: self.detect_sensitive_content(&content),
+        })
+    }
+    
+    // Handle voice notes with strategic analysis
+    async fn handle_voice_note(&mut self, message: &SignalMessage) -> Result<AssistantResponse, AssistantError> {
+        let transcribed_text = match &message.content {
+            MessageContent::Voice(audio) => self.transcribe_audio(audio).await?,
+            MessageContent::Text(text) => text.clone(),
+            _ => return Err(AssistantError::InvalidMessageType),
+        };
+        
+        // Generate strategic brief
+        let strategic_brief = self.generate_strategic_brief(&transcribed_text).await?;
+        
+        // Extract action items
+        let action_items = self.extract_action_items(&transcribed_text).await?;
+        
+        // Find relevant context from previous conversations
+        let related_context = self.search_engine
+            .find_related_conversations(&transcribed_text, 5)
+            .await?;
+        
+        // Generate response in user's preferred style
+        let formatted_response = self.format_strategic_response(
+            &strategic_brief,
+            &action_items,
+            &related_context,
+        ).await?;
+        
+        Ok(AssistantResponse {
+            response_type: ResponseType::StrategicBrief,
+            content: formatted_response,
+            action_items,
+            follow_up_questions: self.generate_strategic_questions(&transcribed_text).await?,
+            processing_time: Duration::from_secs(2), // Fast local processing
+        })
+    }
+    
+    // Handle research requests with background processing
+    async fn handle_research_request(&mut self, message: &SignalMessage) -> Result<AssistantResponse, AssistantError> {
+        let query = self.extract_research_query(message).await?;
+        
+        // Start background research
+        let research_task = ResearchTask {
+            query: query.clone(),
+            started_at: Utc::now(),
+            estimated_completion: Utc::now() + chrono::Duration::minutes(3),
+        };
+        
+        self.conversation_state.research_in_progress = Some(research_task);
+        
+        // Immediate acknowledgment
+        let acknowledgment = format!(
+            "Absolutely! Starting deep research on {}. I'll cross-reference with your previous conversations.\n\nETA: ~3 minutes for comprehensive analysis. Continue with your day!",
+            query
+        );
+        
+        // Start research in background
+        tokio::spawn({
+            let query = query.clone();
+            let search_engine = self.search_engine.clone();
+            async move {
+                // Perform extensive research
+                // This will send a follow-up message when complete
+                Self::perform_background_research(query, search_engine).await
+            }
+        });
+        
+        Ok(AssistantResponse {
+            response_type: ResponseType::Acknowledgment,
+            content: acknowledgment,
+            action_items: Vec::new(),
+            follow_up_questions: Vec::new(),
+            processing_time: Duration::from_millis(500),
+        })
+    }
+    
+    // Handle confidential requests with zkPassport verification
+    async fn handle_confidential_request(&mut self, message: &SignalMessage) -> Result<AssistantResponse, AssistantError> {
+        // Check if already verified recently
+        if !self.is_recently_verified() {
+            return Ok(self.request_identity_verification().await?);
+        }
+        
+        // Process confidential request
+        let confidential_content = self.retrieve_confidential_content(message).await?;
+        
+        // Generate contextual response
+        let response = self.format_confidential_response(&confidential_content).await?;
+        
+        Ok(AssistantResponse {
+            response_type: ResponseType::ConfidentialContent,
+            content: response,
+            action_items: Vec::new(),
+            follow_up_questions: Vec::new(),
+            processing_time: Duration::from_secs(1),
+        })
+    }
+    
+    // Identity verification with optimal backend selection
+    async fn handle_identity_verification(&mut self, intent: &Intent) -> Result<Option<AssistantResponse>, AssistantError> {
+        match self.user_preferences.identity_verification_preference {
+            IdentityVerificationPreference::Automatic => {
+                // Verify silently in background
+                let verification_result = self.zkpassport.prove_passport_valid(
+                    &self.get_cached_passport_data()?,
+                    &self.generate_challenge(),
+                    crate::identity::zkpassport_migration::ProofContext::UserFacing,
+                ).await?;
+                
+                if verification_result.proof_data.is_empty() {
+                    return Err(AssistantError::VerificationFailed);
+                }
+                
+                None // Continue with original request
+            }
+            
+            IdentityVerificationPreference::Prompt => {
+                Some(self.request_identity_verification().await?)
+            }
+            
+            IdentityVerificationPreference::Manual => {
+                Some(AssistantResponse {
+                    response_type: ResponseType::VerificationRequired,
+                    content: "This requires identity verification. Please use the verify command when ready.".to_string(),
+                    action_items: Vec::new(),
+                    follow_up_questions: Vec::new(),
+                    processing_time: Duration::from_millis(100),
+                })
+            }
+        }
+    }
+    
+    async fn request_identity_verification(&self) -> Result<AssistantResponse, AssistantError> {
+        let verification_message = match self.user_preferences.briefing_style {
+            BriefingStyle::Executive => {
+                "Quick identity verification needed for confidential access."
+            }
+            BriefingStyle::Detailed => {
+                "I can help with that. For sensitive materials, I need to verify your identity privately first. This uses zero-knowledge proofs - I never see your actual credentials."
+            }
+            BriefingStyle::Conversational => {
+                "I can help with that! I'll need to verify it's really you first. Quick tap to verify privately?"
+            }
+        };
+        
+        Ok(AssistantResponse {
+            response_type: ResponseType::VerificationRequest,
+            content: format!("{}\n\n[Tap to Verify Privately]", verification_message),
+            action_items: Vec::new(),
+            follow_up_questions: Vec::new(),
+            processing_time: Duration::from_millis(200),
+        })
+    }
+    
+    // Generate proactive insights based on conversation patterns
+    async fn generate_proactive_insight(&self) -> Result<Option<ProactiveInsight>, AssistantError> {
+        let recent_topics = &self.conversation_state.recent_topics;
+        
+        // Look for patterns that warrant proactive insights
+        for topic in recent_topics {
+            if topic.mentions >= 3 && topic.urgency >= UrgencyLevel::Medium {
+                let related_conversations = self.search_engine
+                    .find_related_conversations(&topic.name, 10)
+                    .await?;
+                
+                if related_conversations.len() >= 3 {
+                    return Ok(Some(ProactiveInsight {
+                        topic: topic.name.clone(),
+                        insight: format!(
+                            "I've noticed {} came up in {} recent conversations. The pattern suggests this might be escalating. Want me to prepare a comprehensive analysis?",
+                            topic.name,
+                            topic.mentions
+                        ),
+                        confidence: 0.8,
+                        suggested_action: format!("Research: {} trends and impact analysis", topic.name),
+                    }));
+                }
+            }
+        }
+        
+        Ok(None)
+    }
+    
+    // Format responses based on user style preferences
+    async fn format_strategic_response(
+        &self,
+        brief: &StrategicBrief,
+        action_items: &[ActionItem],
+        context: &[RelatedContext],
+    ) -> Result<String, AssistantError> {
+        let formatted = match self.user_preferences.briefing_style {
+            BriefingStyle::Executive => {
+                format!(
+                    "# Strategic Brief: {}\n\n**Bottom Line:** {}\n\n**Key Insights:**\n{}\n\n**Action Items:**\n{}\n\n**Strategic Context:**\n{}",
+                    brief.title,
+                    brief.bottom_line,
+                    brief.key_insights.iter().map(|i| format!("• {}", i)).collect::<Vec<_>>().join("\n"),
+                    action_items.iter().map(|a| format!("□ {}", a.description)).collect::<Vec<_>>().join("\n"),
+                    self.format_context_connections(context)
+                )
+            }
+            
+            BriefingStyle::Detailed => {
+                format!(
+                    "# Executive Brief: {}\n**Date**: {}\n**Type**: {}\n\n## Analysis\n{}\n\n## Key Insights\n{}\n\n## Recommended Actions\n{}\n\n## Strategic Questions\n{}\n\n## Connections\n{}",
+                    brief.title,
+                    Utc::now().format("%Y-%m-%d %H:%M"),
+                    brief.brief_type,
+                    brief.analysis,
+                    brief.key_insights.iter().map(|i| format!("- **{}**: {}", i.category, i.insight)).collect::<Vec<_>>().join("\n"),
+                    action_items.iter().enumerate().map(|(i, a)| format!("{}. [] {} (Priority: {})", i+1, a.description, a.priority)).collect::<Vec<_>>().join("\n"),
+                    brief.strategic_questions.iter().map(|q| format!("- {}", q)).collect::<Vec<_>>().join("\n"),
+                    self.format_detailed_context(context)
+                )
+            }
+            
+            BriefingStyle::Conversational => {
+                let mut response = format!("Great update! Here's what I'm seeing:\n\n");
+                
+                if !brief.key_insights.is_empty() {
+                    response.push_str("**Key takeaways:**\n");
+                    for insight in &brief.key_insights {
+                        response.push_str(&format!("• {}\n", insight.insight));
+                    }
+                    response.push('\n');
+                }
+                
+                if !action_items.is_empty() {
+                    response.push_str("**Things to follow up on:**\n");
+                    for item in action_items {
+                        response.push_str(&format!("□ {}\n", item.description));
+                    }
+                    response.push('\n');
+                }
+                
+                if !context.is_empty() {
+                    response.push_str(&format!("This connects to {} previous conversations. ", context.len()));
+                    if let Some(first_context) = context.first() {
+                        response.push_str(&format!("Especially relevant: {}\n", first_context.summary));
+                    }
+                }
+                
+                response
+            }
+        };
+        
+        Ok(formatted)
+    }
+    
+    fn format_context_connections(&self, context: &[RelatedContext]) -> String {
+        if context.is_empty() {
+            return "No previous related discussions found.".to_string();
+        }
+        
+        let connections: Vec<String> = context.iter()
+            .take(3) // Limit to top 3 connections
+            .map(|ctx| format!("Related to: [{}] (Similarity: {:.0}%)", ctx.title, ctx.similarity * 100.0))
+            .collect();
+        
+        connections.join("\n")
+    }
+    
+    fn format_detailed_context(&self, context: &[RelatedContext]) -> String {
+        if context.is_empty() {
+            return "No previous related discussions found.".to_string();
+        }
+        
+        let mut formatted = String::new();
+        for (i, ctx) in context.iter().take(5).enumerate() {
+            formatted.push_str(&format!(
+                "{}. **{}** ({})\n   {}\n   Relevance: {:.0}%\n\n",
+                i + 1,
+                ctx.title,
+                ctx.date.format("%Y-%m-%d"),
+                ctx.summary,
+                ctx.similarity * 100.0
+            ));
+        }
+        formatted
+    }
+    
+    // Background research with comprehensive analysis
+    async fn perform_background_research(
+        query: String,
+        search_engine: SemanticSearchEngine,
+    ) -> Result<(), AssistantError> {
+        // This would be called as a background task
+        // Perform 15+ web searches, analyze internal docs, generate comprehensive brief
+        
+        // Simulate comprehensive research
+        tokio::time::sleep(Duration::from_secs(180)).await; // 3 minutes
+        
+        // Generate and send research brief
+        // In real implementation, this would send a follow-up Signal message
+        println!("Research complete for: {}", query);
+        
+        Ok(())
+    }
+    
+    // Calendar integration for proactive assistance
+    pub async fn process_calendar_event(&mut self, event: CalendarEvent) -> Result<Option<AssistantResponse>, AssistantError> {
+        if event.time_until_start() < Duration::from_hours(1) && event.time_until_start() > Duration::from_minutes(45) {
+            // Generate proactive brief for upcoming meeting
+            let related_conversations = self.search_engine
+                .find_conversations_about(&event.title, 10)
+                .await?;
+            
+            if !related_conversations.is_empty() {
+                let brief = self.generate_meeting_brief(&event, &related_conversations).await?;
+                
+                return Ok(Some(AssistantResponse {
+                    response_type: ResponseType::ProactiveBrief,
+                    content: format!(
+                        "Your {} is in {} minutes. I've prepared key talking points based on your recent conversations:\n\n{}",
+                        event.title,
+                        event.time_until_start().as_secs() / 60,
+                        brief
+                    ),
+                    action_items: Vec::new(),
+                    follow_up_questions: vec!["Want the full briefing document?".to_string()],
+                    processing_time: Duration::from_secs(1),
+                }));
+            }
+        }
+        
+        Ok(None)
+    }
+    
+    // Intelligent scheduling based on conversation patterns
+    pub async fn suggest_optimal_scheduling(&self, context: &str) -> Result<Vec<SchedulingSuggestion>, AssistantError> {
+        let related_topics = self.search_engine
+            .extract_topics_from_text(context)
+            .await?;
+        
+        let mut suggestions = Vec::new();
+        
+        for topic in related_topics {
+            if let Some(urgency) = self.assess_topic_urgency(&topic).await? {
+                suggestions.push(SchedulingSuggestion {
+                    topic: topic.clone(),
+                    suggested_timeframe: match urgency {
+                        UrgencyLevel::Critical => "Today".to_string(),
+                        UrgencyLevel::High => "This week".to_string(),
+                        UrgencyLevel::Medium => "Next week".to_string(),
+                        UrgencyLevel::Low => "This month".to_string(),
+                    },
+                    reasoning: format!("Based on {} mentions and recent trend analysis", topic),
+                });
+            }
+        }
+        
+        Ok(suggestions)
+    }
+    
+    // Utility methods
+    
+    async fn transcribe_audio(&self, audio: &AudioData) -> Result<String, AssistantError> {
+        // Use Whisper for transcription
+        // This would integrate with your existing Whisper implementation
+        Ok("Transcribed text placeholder".to_string())
+    }
+    
+    fn classify_intent(&self, content: &str, analysis: &IntentAnalysis) -> IntentType {
+        // Simple classification based on content patterns
+        let content_lower = content.to_lowercase();
+        
+        if content_lower.contains("set up") || content_lower.contains("setup") {
+            IntentType::Setup
+        } else if content_lower.contains("research") || content_lower.contains("analyze") {
+            IntentType::Research
+        } else if content_lower.contains("confidential") || content_lower.contains("board") {
+            IntentType::Confidential
+        } else if content_lower.contains("?") {
+            IntentType::Query
+        } else if analysis.has_business_context {
+            IntentType::VoiceNote
+        } else {
+            IntentType::Casual
+        }
+    }
+    
+    fn detect_sensitive_content(&self, content: &str) -> bool {
+        let sensitive_keywords = vec![
+            "confidential", "board", "financial", "revenue", "secret", 
+            "private", "internal", "executive", "strategic"
+        ];
+        
+        let content_lower = content.to_lowercase();
+        sensitive_keywords.iter().any(|keyword| content_lower.contains(keyword))
+    }
+    
+    fn requires_identity_verification(&self, intent: &Intent) -> bool {
+        intent.sensitive_content || matches!(intent.intent_type, IntentType::Confidential)
+    }
+    
+    fn is_recently_verified(&self) -> bool {
+        // Check if verified within last 30 minutes
+        self.conversation_state.last_verification
+            .map(|last| Utc::now().signed_duration_since(last) < chrono::Duration::minutes(30))
+            .unwrap_or(false)
+    }
+    
+    fn generate_challenge(&self) -> [u8; 32] {
+        // Generate cryptographic challenge for zkPassport
+        use rand::RngCore;
+        let mut challenge = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut challenge);
+        challenge
+    }
+    
+    fn get_cached_passport_data(&self) -> Result<crate::identity::zkpassport_migration::PassportData, AssistantError> {
+        // Retrieve cached passport data (encrypted locally)
+        todo!("Implement secure passport data retrieval")
+    }
+    
+    async fn update_conversation_state(&mut self, message: &SignalMessage, response: &AssistantResponse) -> Result<(), AssistantError> {
+        self.conversation_state.last_interaction = Utc::now();
+        
+        // Update topic tracking
+        if let MessageContent::Text(text) = &message.content {
+            let topics = self.search_engine.extract_topics_from_text(text).await?;
+            for topic in topics {
+                self.update_topic_mentions(&topic);
+            }
+        }
+        
+        // Add action items to pending list
+        self.conversation_state.pending_actions.extend(response.action_items.clone());
+        
+        Ok(())
+    }
+    
+    fn update_topic_mentions(&mut self, topic: &str) {
+        if let Some(existing_topic) = self.conversation_state.recent_topics.iter_mut()
+            .find(|t| t.name.eq_ignore_ascii_case(topic)) {
+            existing_topic.mentions += 1;
+            existing_topic.last_mentioned = Utc::now();
+        } else {
+            self.conversation_state.recent_topics.push(Topic {
+                name: topic.to_string(),
+                mentions: 1,
+                last_mentioned: Utc::now(),
+                sentiment: Sentiment::Neutral,
+                urgency: UrgencyLevel::Medium,
+            });
+        }
+        
+        // Keep only recent topics (last 30 days)
+        let cutoff = Utc::now() - chrono::Duration::days(30);
+        self.conversation_state.recent_topics.retain(|t| t.last_mentioned > cutoff);
+    }
+}
+
+// Supporting data structures
+
+#[derive(Debug, Clone)]
+pub struct SignalMessage {
+    pub content: MessageContent,
+    pub timestamp: DateTime<Utc>,
+    pub sender: String, // Always "Note to Self" in this case
+}
+
+#[derive(Debug, Clone)]
+pub enum MessageContent {
+    Text(String),
+    Voice(AudioData),
+    Image(ImageData),
+}
+
+#[derive(Debug, Clone)]
+pub struct AudioData {
+    pub data: Vec<u8>,
+    pub format: AudioFormat,
+    pub duration: Duration,
+}
+
+#[derive(Debug, Clone)]
+pub enum AudioFormat {
+    Mp3, Wav, Ogg,
+}
+
+#[derive(Debug, Clone)]
+pub struct ImageData {
+    pub data: Vec<u8>,
+    pub format: ImageFormat,
+}
+
+#[derive(Debug, Clone)]
+pub enum ImageFormat {
+    Png, Jpeg, Webp,
+}
+
+#[derive(Debug, Clone)]
+pub struct Intent {
+    pub intent_type: IntentType,
+    pub confidence: f32,
+    pub extracted_entities: Vec<String>,
+    pub sensitive_content: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum IntentType {
+    Setup,        // Initial system setup
+    VoiceNote,    // Strategic business note
+    Research,     // Request for analysis/research
+    Query,        // Question about existing knowledge
+    Confidential, // Access to sensitive information
+    Casual,       // General conversation
+}
+
+#[derive(Debug, Clone)]
+pub struct IntentAnalysis {
+    pub confidence: f32,
+    pub entities: Vec<String>,
+    pub has_business_context: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct AssistantResponse {
+    pub response_type: ResponseType,
+    pub content: String,
+    pub action_items: Vec<ActionItem>,
+    pub follow_up_questions: Vec<String>,
+    pub processing_time: Duration,
+}
+
+impl AssistantResponse {
+    pub fn with_insight(mut self, insight: ProactiveInsight) -> Self {
+        self.content = format!("{}\n\n---\n\n💡 **Insight**: {}", self.content, insight.insight);
+        if !insight.suggested_action.is_empty() {
+            self.follow_up_questions.push(insight.suggested_action);
+        }
+        self
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ResponseType {
+    StrategicBrief,
+    Acknowledgment,
+    ConfidentialContent,
+    VerificationRequest,
+    VerificationRequired,
+    ProactiveBrief,
+    Research,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActionItem {
+    pub description: String,
+    pub priority: Priority,
+    pub due_date: Option<DateTime<Utc>>,
+    pub context: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Priority {
+    Low, Medium, High, Critical
+}
+
+#[derive(Debug, Clone)]
+pub struct StrategicBrief {
+    pub title: String,
+    pub bottom_line: String,
+    pub brief_type: String,
+    pub analysis: String,
+    pub key_insights: Vec<Insight>,
+    pub strategic_questions: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Insight {
+    pub category: String,
+    pub insight: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct RelatedContext {
+    pub title: String,
+    pub summary: String,
+    pub date: DateTime<Utc>,
+    pub similarity: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProactiveInsight {
+    pub topic: String,
+    pub insight: String,
+    pub confidence: f32,
+    pub suggested_action: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ResearchTask {
+    pub query: String,
+    pub started_at: DateTime<Utc>,
+    pub estimated_completion: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CalendarEvent {
+    pub title: String,
+    pub start_time: DateTime<Utc>,
+    pub description: Option<String>,
+}
+
+impl CalendarEvent {
+    pub fn time_until_start(&self) -> Duration {
+        let duration = self.start_time.signed_duration_since(Utc::now());
+        Duration::from_secs(duration.num_seconds().max(0) as u64)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SchedulingSuggestion {
+    pub topic: String,
+    pub suggested_timeframe: String,
+    pub reasoning: String,
+}
+
+impl ConversationState {
+    fn new() -> Self {
+        Self {
+            current_context: Vec::new(),
+            recent_topics: Vec::new(),
+            pending_actions: Vec::new(),
+            research_in_progress: None,
+            last_interaction: Utc::now(),
+            last_verification: None,
+        }
+    }
+    
+    pub last_verification: Option<DateTime<Utc>>,
+}
+
+impl UserPreferences {
+    fn default() -> Self {
+        Self {
+            briefing_style: BriefingStyle::Executive,
+            proactive_insights: true,
+            interruption_threshold: InterruptionLevel::Balanced,
+            identity_verification_preference: IdentityVerificationPreference::Prompt,
+        }
+    }
+}
+
+// Error handling
+#[derive(Debug, thiserror::Error)]
+pub enum AssistantError {
+    #[error("ZkPassport error: {0}")]
+    ZkPassport(#[from] crate::identity::zkpassport_migration::MigrationError),
+    
+    #[error("Context engine error: {0}")]
+    ContextEngine(String),
+    
+    #[error("Search engine error: {0}")]
+    SearchEngine(String),
+    
+    #[error("Invalid message type")]
+    InvalidMessageType,
+    
+    #[error("Verification failed")]
+    VerificationFailed,
+    
+    #[error("Audio transcription failed: {0}")]
+    TranscriptionFailed(String),
+    
+    #[error("Intent analysis failed: {0}")]
+    IntentAnalysisFailed(String),
+}
+
+// Integration with your main Signal module
+impl From<ConversationalAssistant> for crate::signal::client::SignalClient {
+    fn from(assistant: ConversationalAssistant) -> Self {
+        // Convert to your existing Signal client interface
+        todo!("Implement conversion to existing Signal client")
+    }
+}

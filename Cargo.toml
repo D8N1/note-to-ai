@@ -12,6 +12,7 @@ tokio = { version = "1.0", features = ["full", "macros"] }
 # Serialization
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
+toml = "0.8"
 
 # Logging
 tracing = "0.1"
@@ -48,13 +49,31 @@ ed25519-dalek = "2.0"
 hex = "0.4"
 base64 = "0.22"
 rand = "0.8"
-ark-std = "0.4"
-ark-ff = "0.4"
-ark-relations = "0.4"
-ark-bn254 = "0.4"
-ark-groth16 = "0.4"
-ark-serialize = "0.4"
-ark-snark = "0.4"
+num_cpus = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# ZK proving - Hybrid backend approach
+# Arkworks dependencies (optional for arkworks backend)
+ark-std = { version = "0.4", optional = true }
+ark-ff = { version = "0.4", optional = true }
+ark-relations = { version = "0.4", optional = true }
+ark-bn254 = { version = "0.4", optional = true }
+ark-groth16 = { version = "0.4", optional = true }
+ark-serialize = { version = "0.4", optional = true }
+ark-snark = { version = "0.4", optional = true }
+ark-ec = { version = "0.4", optional = true }
+ark-bls12-381 = { version = "0.4", optional = true }
+ark-crypto-primitives = { version = "0.4", optional = true }
+ark-r1cs-std = { version = "0.4", optional = true }
+num-bigint = { version = "0.4", optional = true }
+bincode = { version = "1.3", optional = true }
+
+# New Barretenberg/Noir dependencies for mobile-optimized proving (placeholder - not yet available on crates.io)
+# bb_rs = { version = "0.5", optional = true }
+# noirc_abi = { version = "0.20", optional = true }  
+# noirc_driver = { version = "0.20", optional = true }
+# nargo = { version = "0.20", optional = true }
+# TODO: Enable when Barretenberg Rust bindings are published
 
 # P2P & CRDT
 libp2p = { version = "0.53", features = ["tokio", "macros"] }
@@ -74,6 +93,11 @@ clap = { version = "4.4", features = ["derive"] }
 
 # HTTP client for AI APIs
 reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+url = "2.5"
+
+# Signal Integration Dependencies
+tokio-util = { version = "0.7", features = ["codec"] }
+futures-util = "0.3"
 
 # AI/ML Dependencies - TEMPORARILY DISABLED due to version conflicts
 # Will re-enable once Candle ecosystem stabilizes
@@ -89,6 +113,7 @@ tempfile = "3.0"
 proptest = "1.0"
 insta = { version = "1.34", features = ["glob"] }
 criterion = "0.5"
+mockall = "0.11"
 
 [lib]
 path = "src/lib.rs"
@@ -99,8 +124,18 @@ name = "performance_tests"
 harness = false
 
 [features]
-# No migration needed - clean start with hybrid storage
-default = []
+# Feature flags for gradual migration to hybrid backend
+default = ["arkworks-backend"]
+
+# Backend selection features
+arkworks-backend = ["ark-std", "ark-ff", "ark-relations", "ark-bn254", "ark-groth16", "ark-serialize", "ark-snark", "ark-ec", "ark-bls12-381", "ark-crypto-primitives", "ark-r1cs-std", "num-bigint", "bincode"]
+barretenberg-backend = [] # Placeholder for future Barretenberg integration
+mobile-optimized = ["barretenberg-backend"]
+hybrid-backend = ["arkworks-backend", "barretenberg-backend"]
+
+# Migration and testing features
+migration-testing = []
+performance-benchmarks = []
 
 [patch.crates-io]
 # Using published crates for better compatibility

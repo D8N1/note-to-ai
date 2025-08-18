@@ -5,7 +5,14 @@ pub mod embeddings;
 pub mod indexer;
 pub mod parser;
 pub mod search;
+pub mod semantic_search; // Add for Signal integration
+pub mod ai_agent_integration; // AI agent collaboration system
 // pub mod storage; // Temporarily disabled while fixing Arrow ecosystem
+
+pub use ai_agent_integration::{
+    AgentType, AgentConfig, AgentMessage, AgentWorkspaceManager,
+    MessageType, Priority, Permission, AgentStatus
+};
 
 use anyhow::{Result, Context};
 use std::path::{Path, PathBuf};

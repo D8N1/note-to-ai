@@ -325,7 +325,7 @@ impl HermesIntegration {
         &self,
         conversation_id: &str,
         user_message: &str,
-        callback: impl Fn(String) -> Result<()> + Send + Sync,
+        _callback: impl Fn(String) -> Result<()> + Send + Sync,
     ) -> Result<()> {
         // Implementation for streaming responses
         // This would use Server-Sent Events or WebSocket connection

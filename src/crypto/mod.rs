@@ -14,12 +14,24 @@ impl Crypto {
     }
     
     pub fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
-        // TODO: Implement quantum-resistant encryption
-        Ok(data.to_vec())
+        // Basic XOR encryption for development - NOT for production
+        let key = b"dev_key_32_bytes_long_for_testing"; // 32 bytes
+        let mut encrypted = Vec::with_capacity(data.len());
+        
+        for (i, &byte) in data.iter().enumerate() {
+            encrypted.push(byte ^ key[i % key.len()]);
+        }
+        
+        Ok(encrypted)
     }
     
     pub fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
-        // TODO: Implement quantum-resistant decryption
-        Ok(data.to_vec())
+        // XOR encryption is symmetric
+        self.encrypt(data)
+    }
+    
+    pub fn hash(&self, data: &[u8]) -> String {
+        // Use Blake3 for hashing
+        blake3::hash(data).to_hex().to_string()
     }
 }

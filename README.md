@@ -2,22 +2,22 @@
 
 [![Project Status: WIP](https://img.shields.io/badge/status-WIP-orange)](./STATUS.md)
 
-Transform Signal's "Note to Self" into a private AI knowledge base. Transcribe voice notes, parse markdown, and maintain executive-grade "President's Briefs" with local hybrid search—all processed on-device. Generate intelligent prompts and strategic research summaries that economize external LLM API calls while preserving Signal's trust model.
-> *Transform your Signal "Note to Self" into an AI-powered knowledge base and personal assistant*
+Transform Obsidian & Signal's "Note to Self" into a private AI knowledge base. Transcribe voice notes, parse markdown, and maintain executive-grade "President's Briefs" with local hybrid search—all processed on-device. Generate intelligent prompts and strategic research summaries that economize external LLM API calls while preserving Signal's trust model.
+> *Transform Obsidian & Signal's "Note to Self" into an AI-powered knowledge base and platform specialist AI on to your team.
 
 **Your most private thoughts deserve the most private AI.**
 
-note-to-ai bridges the gap between your casual voice notes and professional-grade intelligence briefings. Send a voice message to Signal's "Note to Self", and receive back a structured, searchable knowledge base with AI-generated insights — all processed locally on your M1 MacBook.
+note-to-ai bridges the gap between your casual voice notes and professional-grade intelligence briefings. Send a voice message to Signal's "Note to Self", and use them to direct and deveop a structured, searchable knowledge base with AI-generated insights — all processed locally (current target - M1 MacBook.)
 
 ## Elevator pitch
 
-note-to-ai turns Signal’s “Note to Self” into a private, on-device AI knowledge base. It transcribes voice notes, parses markdown, and indexes everything locally with hybrid full-text + vector search—no cloud, no data leaves the device. It’s fast, offline-first, and integrates cleanly with Obsidian for power users. The result: users can ask natural questions and instantly surface past ideas, messages, and files—while preserving Signal’s core promise of privacy and security. It’s an open, modular foundation to showcase private AI features inside Signal without compromising trust.
+note-to-ai turns Obisdian & Signal’s “Note to Self” into a private, on-device AI knowledge base. It transcribes voice notes, parses markdown, and indexes everything locally with hybrid full-text + vector search—no cloud. It’s fast, offline-first, and integrates cleanly with Obsidian for power users. The result: users can ask natural questions and instantly surface past ideas, messages, and files—while preserving Signal’s core promise of privacy and security. It’s an open, modular foundation to showcase private AI features inside Signal without compromising trust.
 
 > Status: Work-in-Progress. See [STATUS.md](./STATUS.md) for current gaps and planned improvements.
 
 ## 🎯 The Value Proposition
 
-**Signal "Note to Self" → Local AI → LLM Processing → Local AI → Structured .md "President's Brief"**
+**Signal "Note to Self" → Local AI → (optimised External API calls) → Local AI → Structured .md "President's Brief"**
 
 ### The Workflow
 1. **💬 Capture**: Send voice notes, photos, or text to Signal "Note to Self"
@@ -56,10 +56,10 @@ note-to-ai turns Signal’s “Note to Self” into a private, on-device AI know
 - **Signal-Protected Communication**: All data in transit secured by Signal's proven E2E encryption
 - **Local AI Processing**: Zero cloud dependencies, all AI runs on your M1 Mac
 - **Quantum-Resistant Encryption**: ML-KEM + Signal hybrid cryptography
-- **IPFS Private Swarm**: Distributed sync without central servers
-- **zkPassport Integration**: Identity verification with zero-knowledge proofs
+- **IPFS Private Swarm**: Distributed sync and conflict resolution  CRDT without central servers
+- **zkPassport Integration**: Identity & agency verification for 'human in the loop' attestations with recursive zero-knowledge proofs 
 
-### ⚡ M1 MacBook Optimized
+### ⚡ current target M1 MacBook - more apple silicone to come !
 - **Metal Backend**: GPU acceleration for all AI models
 - **Memory Efficient**: 4-8GB usage with dynamic model loading
 - **Real-Time Processing**: Sub-second response times for most operations
@@ -70,7 +70,7 @@ note-to-ai turns Signal’s “Note to Self” into a private, on-device AI know
 ### Prerequisites
 - M1 MacBook Air/Pro (8GB+ RAM recommended)
 - Signal Desktop/Mobile with "Note to Self" enabled
-- macOS 13+ with Xcode command line tools
+- macOS 13+ with Homebrew & your choice of IDE
 
 ### Installation
 ```bash
