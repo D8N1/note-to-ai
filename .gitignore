@@ -171,13 +171,17 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Internal development and consolidation files (keep local)
+handOFF.txt
+code_summary.txt
+consolidate.sh
+CONSOLIDATION_ANALYSIS.md
+
 # Keep important files (override patterns above)
 !models/model_registry.toml
 !models/m1_production_ready.json
 !models/README.md
-!handOFF.txt
 !README.md
-!code_summary.txt
 !vault/README.md
 !vault/*.md
 !config/.env.template

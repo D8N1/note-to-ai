@@ -49,8 +49,22 @@ ed25519-dalek = "2.0"
 hex = "0.4"
 base64 = "0.22"
 rand = "0.8"
-num_cpus = "1.0"
+
+# IPFS & Networking for private swarm
+# libp2p = "0.53"                      # P2P networking foundation
+# libp2p-swarm = "0.44"                # Swarm management
+# libp2p-mdns = "0.45"                 # mDNS peer discovery
+# libp2p-kad = "0.45"                  # Kademlia DHT for peer routing
+# libp2p-noise = "0.44"                # Noise protocol for encryption
+# url = "2.4"                          # URL parsing for link processing
+
+# CRDT for conflict-free synchronization
+# automerge = "0.5"                    # CRDT implementation
+
+# For now: UUID for operation IDs and URL parsing
 uuid = { version = "1.0", features = ["v4", "serde"] }
+url = "2.4"
+num_cpus = "1.0"
 
 # ZK proving - Hybrid backend approach
 # Arkworks dependencies (optional for arkworks backend)
@@ -93,7 +107,6 @@ clap = { version = "4.4", features = ["derive"] }
 
 # HTTP client for AI APIs
 reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
-url = "2.5"
 
 # Signal Integration Dependencies
 tokio-util = { version = "0.7", features = ["codec"] }

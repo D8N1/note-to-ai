@@ -24,4 +24,14 @@ pub use identity::zkpassport_migration::{
     MigratedZkPassport, PassportContext, PassportData, ZkPassportConfig
 };
 
+// Swarm and workflow exports
+pub use swarm::{Swarm, SwarmEvent, WorkflowResult};
+pub use swarm::ipfs::{SwarmConfig, SwarmSyncStatus, NetworkHealth};
+
+// Signal integration exports
+pub use signal_integration::note_to_self::{IncomingMessage, MessageType, Attachment};
+
+// Obsidian exports
+pub use obsidian::{AIResponse, ObsidianManager, ObsidianConfig};
+
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>; 

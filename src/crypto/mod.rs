@@ -4,7 +4,7 @@ pub mod keys;
 pub mod pq_vault;
 pub mod zk_proofs;
 
-use crate::Result;
+use anyhow::Result;
 
 pub struct Crypto;
 

@@ -7,7 +7,7 @@ pub mod parser;
 pub mod search;
 pub mod semantic_search; // Add for Signal integration
 pub mod ai_agent_integration; // AI agent collaboration system
-// pub mod storage; // Temporarily disabled while fixing Arrow ecosystem
+pub mod storage; // Re-enabled with temporary implementation
 
 pub use ai_agent_integration::{
     AgentType, AgentConfig, AgentMessage, AgentWorkspaceManager,

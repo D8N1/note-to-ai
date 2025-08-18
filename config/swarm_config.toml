@@ -1,0 +1,133 @@
+# Quantum-Secure Private Swarm Configuration
+# Configure your devices for secure vault synchronization
+
+[swarm]
+# Private swarm key - MUST be identical across all your devices
+# Generate new key: openssl rand -hex 32
+swarm_key = "demo_quantum_secure_swarm_key_replace_in_production"
+
+# Trusted device addresses for bootstrap
+# Add your device IPs/hostnames here
+bootstrap_peers = [
+    "android_phone_192.168.1.100:4001",
+    "m1_macbook_192.168.1.101:4001", 
+    "windows_laptop_192.168.1.102:4001"
+]
+
+[node]
+# This device configuration
+node_name = "primary_m1_macbook"
+device_type = "M1MacBook"  # M1MacBook, AndroidPhone, WindowsPC, LinuxDesktop, RaspberryPi
+
+# Storage & bandwidth limits
+max_storage_gb = 100
+max_bandwidth_mbps = 1000  # Adjust for mobile devices
+
+[sync]
+# Synchronization settings
+sync_interval_secs = 30         # Regular sync interval
+realtime_voice_sync = true      # Immediate sync for voice notes
+enable_crdt = true              # Conflict-free replicated data types
+quantum_encryption = true      # Post-quantum cryptography
+
+# Priority sync patterns
+[sync.priority_patterns]
+voice_notes = "**/*voice*/**/*.md"
+ai_responses = "**/AI Responses/**/*.md"
+daily_notes = "**/daily-notes-*.md"
+research_links = "**/Research/**/*.md"
+
+[vault]
+# Vault structure configuration
+vault_path = "vault"
+auto_link = true
+default_tags = ["#ai-generated", "#swarm-synced"]
+
+# AI response organization
+ai_response_template = "AI Responses/{{date}}/{{timestamp}}-{{query_summary}}"
+daily_note_template = "Daily Notes/daily-notes-{{date}}"
+
+[devices.android_phone]
+# Android device specific settings
+device_type = "AndroidPhone"
+conflict_strategy = "CRDTMerge"
+sync_mode = "Realtime"
+bandwidth_limit = 1024    # KB/s - mobile network consideration
+storage_limit = 10        # GB - phone storage constraint
+
+# Obsidian app integration
+obsidian_vault_path = "/storage/emulated/0/Documents/Obsidian/NoteToAI"
+enable_background_sync = true
+
+[devices.m1_macbook]
+# M1 MacBook settings (primary editing device)
+device_type = "M1MacBook"
+conflict_strategy = "CRDTMerge"
+sync_mode = "Realtime"
+bandwidth_limit = null    # No bandwidth limits
+storage_limit = 100       # GB
+
+# Desktop Obsidian integration
+obsidian_vault_path = "vault"
+enable_file_watcher = true
+
+[security]
+# Quantum-resistant cryptography settings
+enable_ml_kem = true           # ML-KEM post-quantum encryption
+enable_signal_protocol = true  # Signal protocol for message encryption
+enable_zk_proofs = false       # Zero-knowledge proofs (optional)
+
+# Key management
+key_rotation_days = 90
+backup_encryption = true
+
+[signal_integration]
+# Signal "Note to Self" configuration
+enable_signal_bot = true
+signal_device_name = "note-to-ai-bot"
+
+# Voice processing
+transcription_model = "whisper-base"
+auto_transcribe = true
+voice_priority_sync = true
+
+# URL processing
+auto_create_research_notes = true
+fetch_page_metadata = true
+
+[performance]
+# Performance optimizations
+enable_compression = true
+compression_level = 6
+enable_delta_sync = true      # Only sync changes, not full files
+batch_small_operations = true
+
+# M1 MacBook optimizations
+use_metal_acceleration = true  # For AI model inference
+optimize_for_ssd = true
+memory_limit_gb = 8
+
+[logging]
+# Logging configuration
+level = "info"
+log_file = "logs/swarm.log"
+log_rotation = "daily"
+
+# What to log
+log_sync_operations = true
+log_conflicts = true
+log_performance_metrics = true
+
+[experimental]
+# Experimental features
+enable_mesh_networking = false     # Full mesh P2P network
+enable_offline_ai = false          # Local AI responses when offline
+enable_smart_prefetch = false      # Predictive content prefetching
+enable_collaborative_editing = false  # Real-time collaborative editing
+
+[demo_mode]
+# Demo and testing settings
+create_sample_data = true
+mock_transcription = true
+simulate_network_delays = false
+enable_debug_ui = false
