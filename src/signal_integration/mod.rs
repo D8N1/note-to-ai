@@ -5,6 +5,7 @@ pub mod note_to_self;
 pub mod conversational_assistant;
 pub mod signal_connector;
 pub mod api_compatibility;
+pub mod device_linking;
 
 use crate::Result;
 use anyhow::{Context, anyhow};
@@ -22,6 +23,10 @@ pub use signal_connector::{SignalConnector, SignalConfig, ProcessedSignalMessage
 pub use note_to_self::{
     NoteToSelfProcessor, IncomingMessage, MessageType, ProcessedMessage,
     UXConfig, ResponseStyle, BriefFormat
+};
+pub use device_linking::{
+    DeviceLinkManager, DeviceLinkConfig, LinkingStatus, QrDisplayMethod,
+    quick_device_link, start_device_linking, test_qr_display
 };
 
 /// Complete Signal integration service

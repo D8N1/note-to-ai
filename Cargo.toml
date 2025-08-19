@@ -105,6 +105,9 @@ yaml-rust = "0.4"
 # CLI
 clap = { version = "4.4", features = ["derive"] }
 
+# QR code generation for Signal device linking
+qrcode = "0.14"
+
 # HTTP client for AI APIs
 reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
 

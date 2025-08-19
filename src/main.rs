@@ -17,164 +17,14 @@ mod audio;
 mod scheduler;
 mod obsidian;
 mod attestation;
+mod commands;
 
 use config::Settings;
+use commands::Cli;
 // Temporarily disabled while fixing Arrow ecosystem conflicts
 // use vault::storage::{HybridStorageEngine, StorageConfig};
 
 /// note-to-ai: Transform your Signal "Note to Self" into an AI-powered knowledge base
-#[derive(Parser)]
-#[command(name = "note-to-ai")]
-#[command(about = "Your personal AI assistant via Signal", long_about = None)]
-#[command(version)]
-struct Cli {
-    #[command(subcommand)]
-    command: Option<Commands>,
-    
-    /// Configuration file path
-    #[arg(short, long, default_value = "config/config.toml")]
-    config: PathBuf,
-    
-    /// Log level (trace, debug, info, warn, error)
-    #[arg(long, default_value = "info")]
-    log_level: String,
-    
-    /// Log to file instead of stdout
-    #[arg(long)]
-    log_file: Option<PathBuf>,
-    
-    /// Run in daemon mode (background service)
-    #[arg(long)]
-    daemon: bool,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    /// Start the note-to-ai service
-    Start {
-        /// Skip Signal connection (for testing)
-        #[arg(long)]
-        skip_signal: bool,
-        
-        /// Skip AI model loading (for faster startup)
-        #[arg(long)]
-        skip_ai: bool,
-    },
-    
-    /// Query your knowledge base directly
-    Query {
-        /// Query text
-        text: String,
-        
-        /// Use semantic search instead of text search
-        #[arg(long)]
-        semantic: bool,
-        
-        /// Maximum number of results
-        #[arg(short, long, default_value = "5")]
-        limit: usize,
-    },
-    
-    /// Export your notes to different formats
-    Export {
-        /// Output directory
-        #[arg(short, long, default_value = "./export")]
-        output: PathBuf,
-        
-        /// Export format (obsidian, markdown, json)
-        #[arg(short, long, default_value = "obsidian")]
-        format: String,
-        
-        /// Date range filter (YYYY-MM-DD to YYYY-MM-DD)
-        #[arg(long)]
-        date_range: Option<String>,
-    },
-    
-    /// Show system status and statistics
-    Status,
-    
-    /// Index vault files for search
-    Index {
-        /// Force full re-indexing (ignore change detection)
-        #[arg(long)]
-        force: bool,
-        
-        /// Show detailed progress
-        #[arg(short, long)]
-        verbose: bool,
-    },
-    
-    /// Manage AI models
-    Models {
-        #[command(subcommand)]
-        action: ModelAction,
-    },
-    
-    /// Setup and configure Signal integration
-    Signal {
-        #[command(subcommand)]
-        action: SignalAction,
-    },
-    
-    /// Test Obsidian integration
-    Obsidian {
-        #[command(subcommand)]
-        action: ObsidianAction,
-    },
-
-    /// Record an attestation event (prototype)
-    Attest {
-        /// Path to related file/content (optional)
-        #[arg(short, long)]
-        path: Option<PathBuf>,
-        /// Freeform context string to hash
-        #[arg(short, long)]
-        context: Option<String>,
-    },
-}
-
-#[derive(Subcommand)]
-enum ModelAction {
-    /// List available models
-    List,
-    /// Download a specific model
-    Download { name: String },
-    /// Remove a model
-    Remove { name: String },
-    /// Test model performance
-    Benchmark { name: String },
-}
-
-#[derive(Subcommand)]
-enum SignalAction {
-    /// Setup Signal integration
-    Setup {
-        /// Phone number for registration
-        #[arg(long)]
-        phone: String,
-    },
-    /// Test Signal connection
-    Test,
-    /// Show Signal status
-    Status,
-}
-
-#[derive(Subcommand)]
-enum ObsidianAction {
-    /// Create a demo AI response note
-    Demo {
-        /// Query to simulate
-        #[arg(default_value = "What are the key concepts in quantum computing?")]
-        query: String,
-    },
-    /// Create or update today's daily note
-    Daily {
-        /// Interaction summary to add
-        summary: String,
-    },
-    /// Scan vault for linkable notes
-    Scan,
-}
 
 /// Main application state
 pub struct NoteToAI {
@@ -631,99 +481,8 @@ async fn main() -> Result<()> {
     // Print startup banner
     print_startup_banner();
     
-    match cli.command {
-        Some(Commands::Start { skip_signal, skip_ai }) => {
-            let mut app = NoteToAI::new(&cli.config).await?;
-            app.start(skip_signal, skip_ai).await?;
-        }
-        
-        Some(Commands::Query { text, semantic, limit }) => {
-            let app = NoteToAI::new(&cli.config).await?;
-            app.query(&text, semantic, limit).await?;
-        }
-        
-        Some(Commands::Export { output, format, date_range }) => {
-            let app = NoteToAI::new(&cli.config).await?;
-            app.export(&output, &format, date_range.as_deref()).await?;
-        }
-        
-        Some(Commands::Status) => {
-            let app = NoteToAI::new(&cli.config).await?;
-            app.show_status().await?;
-        }
-        
-        Some(Commands::Index { force, verbose }) => {
-            let app = NoteToAI::new(&cli.config).await?;
-            app.index_vault(force, verbose).await?;
-        }
-        
-        Some(Commands::Models { action }) => {
-            match action {
-                ModelAction::List => {
-                    println!("Available AI models:");
-                    println!("  whisper-base (~290MB) - Speech-to-text");
-                    println!("  all-MiniLM-L6-v2 (~90MB) - Text embeddings");
-                    println!("  hermes-3-8b (~16GB) - Conversational AI");
-                    println!("  phi-3-mini (~6GB) - Lightweight LLM");
-                }
-                ModelAction::Download { name } => {
-                    info!("Downloading model: {}", name);
-                    // TODO: Implement model download
-                }
-                ModelAction::Remove { name } => {
-                    info!("Removing model: {}", name);
-                    // TODO: Implement model removal
-                }
-                ModelAction::Benchmark { name } => {
-                    info!("Benchmarking model: {}", name);
-                    // TODO: Implement model benchmarking
-                }
-            }
-        }
-        
-        Some(Commands::Signal { action }) => {
-            match action {
-                SignalAction::Setup { phone } => {
-                    info!("Setting up Signal integration for {}", phone);
-                    // TODO: Implement Signal setup
-                }
-                SignalAction::Test => {
-                    info!("Testing Signal connection");
-                    // TODO: Implement Signal test
-                }
-                SignalAction::Status => {
-                    info!("Signal connection status");
-                    // TODO: Show Signal status
-                }
-            }
-        }
-        
-        Some(Commands::Obsidian { action }) => {
-            let app = NoteToAI::new(&cli.config).await?;
-            match action {
-                ObsidianAction::Demo { query } => {
-                    app.obsidian_demo(&query).await?;
-                }
-                ObsidianAction::Daily { summary } => {
-                    app.obsidian_daily(&summary).await?;
-                }
-                ObsidianAction::Scan => {
-                    app.obsidian_scan().await?;
-                }
-            }
-        }
-
-        Some(Commands::Attest { path, context }) => {
-            let app = NoteToAI::new(&cli.config).await?;
-            app.attest(path, context).await?;
-        }
-        
-        None => {
-            // Default: start the service
-            let mut app = NoteToAI::new(&cli.config).await?;
-            app.start(false, false).await?;
-        }
-    }
+    // Route to appropriate handler
+    commands::handle_command(cli).await?;
     
     Ok(())
 }
@@ -755,15 +514,7 @@ fn setup_logging(level: &str, log_file: Option<&PathBuf>) -> Result<()> {
 
 fn print_startup_banner() {
     println!(r#"
-╔══════════════════════════════════════════════════════════════╗
-║                         note-to-ai                          ║
-║              Your Personal AI Assistant via Signal          ║
-║                                                              ║
-║  🎤 Voice → 🧠 AI → 🔍 Search → 💬 Respond                  ║
-║                                                              ║
-║  Transform your Signal "Note to Self" into an intelligent   ║
-║  knowledge base powered by local AI models.                 ║
-╚══════════════════════════════════════════════════════════════╝
+    ████ NOTE-TO-AI ████ Personal AI Assistant ████ Voice → Brain → Search → Reply ████
 "#);
 }
 

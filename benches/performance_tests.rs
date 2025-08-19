@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use note_to_ai::vault::indexer::VaultIndexer;
-use note_to_ai::obsidian::ObsidianVault;
+use note_to_ai::obsidian::{ObsidianManager, ObsidianConfig, AIResponse, create_demo_response};
 use note_to_ai::config::Settings;
 use std::path::PathBuf;
 use std::fs;
@@ -70,14 +70,19 @@ fn benchmark_obsidian_integration(c: &mut Criterion) {
                 || setup_obsidian_vault(),
                 |temp_dir| async move {
                     let vault_path = temp_dir.path().to_path_buf();
-                    let obsidian = ObsidianVault::new(vault_path).await.unwrap();
+                    let config = ObsidianConfig {
+                        vault_path,
+                        ..Default::default()
+                    };
+                    let obsidian = ObsidianManager::new(config);
                     
                     let query = "What are the key concepts in quantum computing?";
                     let response = "Test AI response content for benchmarking performance...";
+                    let ai_response = create_demo_response(query, response);
                     
                     black_box(
                         obsidian
-                            .create_ai_response(query, response, "hermes-3-8b", 0.85)
+                            .save_ai_response(ai_response)
                             .await
                             .unwrap()
                     )
@@ -91,13 +96,17 @@ fn benchmark_obsidian_integration(c: &mut Criterion) {
                 || setup_obsidian_vault(),
                 |temp_dir| async move {
                     let vault_path = temp_dir.path().to_path_buf();
-                    let obsidian = ObsidianVault::new(vault_path).await.unwrap();
+                    let config = ObsidianConfig {
+                        vault_path,
+                        ..Default::default()
+                    };
+                    let obsidian = ObsidianManager::new(config);
                     
                     let summary = "Benchmark test interaction summary";
                     
                     black_box(
                         obsidian
-                            .add_daily_interaction(summary)
+                            .append_to_daily_note(summary)
                             .await
                             .unwrap()
                     )
