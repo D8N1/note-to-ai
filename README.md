@@ -1,8 +1,8 @@
-# � note-to-ai: Presidential Intelligence Revolution
+# � note-to-ai: 
 
 [![Project Status: WIP](https://img.shields.io/badge/status-WIP-orange)](./STATUS.md) [![Privacy-First](https://img.shields.io/badge/privacy-local--only-green)](#privacy--security) [![Executive-Grade](https://img.shields.io/badge/intelligence-presidential--brief-red)](#presidential-brief-system)
 
-> **Transform casual voice notes into executive-grade intelligence briefings with adaptive AI that gets smarter every day.**
+> **Transform voice notes, URL's and documents into executive-grade intelligence briefings with adaptive AI that gets smarter every day.**
 
 **Signal "Note to Self" → AI Intelligence Engine → President's Daily Brief → Evolving Knowledge Base**
 
@@ -10,7 +10,7 @@ This isn't note-taking. This is **intelligence generation**. Every voice message
 
 ## 🏛️ **THE PRESIDENTIAL BRIEF SYSTEM**
 
-**This is the revolution**: Turn every scattered thought into executive-grade intelligence.
+**Executive leadership for your own knowledge base**: Turn every thought, idea and source into executive-grade intelligence.
 
 ### 📊 **From Voice to Presidential Brief**
 **Input** (30 seconds):
