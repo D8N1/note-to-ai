@@ -11,6 +11,6 @@ impl LocalLLM {
     }
     
     pub async fn generate(&self, prompt: &str, _max_tokens: usize) -> Result<String> {
-        Ok(format!("🤖 AI Response to: {}", prompt))
+        Ok(format!("🤖 AI Response to: {prompt}"))
     }
 }

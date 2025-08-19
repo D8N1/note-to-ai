@@ -84,7 +84,7 @@ impl Signer {
         };
 
         let json = serde_json::to_string_pretty(&sidecar)?;
-        let sidecar_path = path.with_extension(format!("{}", path.extension().and_then(|e| e.to_str()).unwrap_or("").to_string() + ".sig.json"));
+        let sidecar_path = path.with_extension(path.extension().and_then(|e| e.to_str()).unwrap_or("").to_string() + ".sig.json");
         fs::write(&sidecar_path, json)?;
         Ok(sidecar_path)
     }

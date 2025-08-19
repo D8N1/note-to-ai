@@ -9,10 +9,9 @@ use std::process::Stdio;
 use std::time::{Duration, SystemTime};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
-use tokio::time::{timeout, sleep};
-use tracing::{info, warn, error, debug};
-use uuid::Uuid;
-use base64::{Engine as _, engine::general_purpose};
+use tokio::time::timeout;
+use tracing::{info, error, debug};
+use base64::Engine as _;
 use qrcode::QrCode;
 use qrcode::render::unicode;
 
@@ -166,7 +165,7 @@ impl DeviceLinkManager {
                     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                     
                     if let Some(qr_data) = qr_code_data {
-                        println!("{}", qr_data);
+                        println!("{qr_data}");
                     }
                     
                     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -174,7 +173,7 @@ impl DeviceLinkManager {
                     println!("⏱️  Expires in: {:.0} seconds", 
                         expires_at.duration_since(SystemTime::now())
                             .unwrap_or(Duration::ZERO).as_secs());
-                    println!("🔗 URI: {}", device_link_uri);
+                    println!("🔗 URI: {device_link_uri}");
                     Ok(())
                 } else {
                     Err(anyhow!("QR code has expired").into())
@@ -194,7 +193,7 @@ impl DeviceLinkManager {
         debug!("Validating signal-cli installation");
         
         let output = Command::new(&self.config.signal_cli_path)
-            .args(&["--version"])
+            .args(["--version"])
             .output()
             .await
             .context("Failed to execute signal-cli")?;
@@ -217,7 +216,7 @@ impl DeviceLinkManager {
         
         // Use signal-cli to start linking
         let mut cmd = Command::new(&self.config.signal_cli_path);
-        cmd.args(&[
+        cmd.args([
             "--config", self.config.data_dir.to_str().unwrap(),
             "link",
             "--name", &self.config.device_name,
@@ -272,7 +271,7 @@ impl DeviceLinkManager {
                 println!("📁 QR code also saved to: {}", path.display());
             }
             QrDisplayMethod::UriOnly => {
-                println!("🔗 Device Link URI: {}", uri);
+                println!("🔗 Device Link URI: {uri}");
             }
         }
         
@@ -292,7 +291,7 @@ impl DeviceLinkManager {
         
         println!("\n🔗 **SIGNAL DEVICE LINKING**");
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        println!("{}", image);
+        println!("{image}");
         println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         
         Ok(())
@@ -429,7 +428,7 @@ impl DeviceLinkManager {
             }
             Ok(())
         } else {
-            let error_msg = format!("signal-cli process failed with status: {}", status);
+            let error_msg = format!("signal-cli process failed with status: {status}");
             self.status = LinkingStatus::Failed {
                 error: error_msg.clone(),
                 retry_available: true,
@@ -502,7 +501,7 @@ pub fn test_qr_display() -> Result<()> {
     println!("🧪 Testing QR code generation...\n");
     
     let test_qr = DeviceLinkManager::create_test_qr()?;
-    println!("{}", test_qr);
+    println!("{test_qr}");
     
     println!("\n✅ QR code generation test successful!");
     Ok(())

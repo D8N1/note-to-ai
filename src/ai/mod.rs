@@ -5,7 +5,6 @@ pub mod local_llm;
 pub mod model_switcher;
 
 use crate::Result;
-use anyhow::anyhow;
 
 pub struct AI {
     hermes: Option<hermes_integration::HermesIntegration>,
@@ -35,7 +34,7 @@ impl AI {
     
     pub async fn process_with_context(&self, query: &str, context: &[String]) -> Result<String> {
         let context_str = context.join("\n");
-        let full_query = format!("Context:\n{}\n\nQuery: {}", context_str, query);
+        let full_query = format!("Context:\n{context_str}\n\nQuery: {query}");
         
         self.process_query(&full_query).await
     }

@@ -141,7 +141,7 @@ impl WhisperProcessor {
         
         // Add length variation based on file size
         let extended_content = if file_size > 1024 * 1024 {
-            format!("{} This appears to be a longer recording with additional details and extended discussion.", mock_content)
+            format!("{mock_content} This appears to be a longer recording with additional details and extended discussion.")
         } else {
             mock_content.to_string()
         };

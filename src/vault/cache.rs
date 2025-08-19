@@ -1,5 +1,4 @@
 // src/vault/cache.rs - Smart caching layer
-use crate::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;

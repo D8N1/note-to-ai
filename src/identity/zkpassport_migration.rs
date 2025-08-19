@@ -2,13 +2,10 @@
 // Migration implementation for zkPassport from Arkworks to hybrid Arkworks+Barretenberg
 
 use crate::identity::proving_backend::{
-    AdaptiveProver, CircuitInputs, PrivateInputs, ProofData, ProofStrategy, 
-    ProvingContext, ProvingError, PublicInputs, VerificationContext, ZkProver
+    AdaptiveProver, CircuitInputs, PrivateInputs, ProofData, ProofStrategy, ProvingError, PublicInputs, VerificationContext, ZkProver
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 
 /// Noir circuit source for passport verification (replaces Arkworks R1CS)
 const PASSPORT_NOIR_CIRCUIT: &str = r#"
@@ -290,11 +287,11 @@ impl MigratedZkPassport {
         let proof = self.prove_age_over(21, &mobile_passport, None).await?;
         let proving_time = start_time.elapsed();
         
-        println!("Mobile proving time: {:?}", proving_time);
+        println!("Mobile proving time: {proving_time:?}");
         
         // Should complete reasonably quickly on mobile
         if proving_time > std::time::Duration::from_secs(20) {
-            println!("⚠️  Warning: Mobile proving time is high: {:?}", proving_time);
+            println!("⚠️  Warning: Mobile proving time is high: {proving_time:?}");
         } else {
             println!("✓ Mobile proving performance acceptable");
         }
@@ -317,7 +314,7 @@ impl MigratedZkPassport {
             let challenge = [i as u8; 32];
             
             // Create a separate instance for each concurrent test
-            let mut prover = MigratedZkPassport::new().await?;
+            let prover = MigratedZkPassport::new().await?;
             
             let handle = tokio::spawn(async move {
                 prover.prove_age_over(18, &passport, Some(challenge)).await
@@ -330,13 +327,13 @@ impl MigratedZkPassport {
         for handle in handles {
             match handle.await {
                 Ok(Ok(_)) => successful_proofs += 1,
-                Ok(Err(e)) => println!("⚠️  Proof failed: {}", e),
-                Err(e) => println!("⚠️  Task failed: {}", e),
+                Ok(Err(e)) => println!("⚠️  Proof failed: {e}"),
+                Err(e) => println!("⚠️  Task failed: {e}"),
             }
         }
         
         if successful_proofs >= 2 {
-            println!("✓ Concurrent proving test passed ({}/3 successful)", successful_proofs);
+            println!("✓ Concurrent proving test passed ({successful_proofs}/3 successful)");
         } else {
             return Err(MigrationError::MigrationVerification);
         }
@@ -440,7 +437,7 @@ impl<'de> serde::Deserialize<'de> for PassportData {
     where
         D: serde::Deserializer<'de>,
     {
-        use serde::de::{self, Deserialize, Deserializer, MapAccess, Visitor};
+        use serde::de::{self, Deserializer, MapAccess, Visitor};
         use std::fmt;
         
         #[derive(Deserialize)]
@@ -577,7 +574,7 @@ impl<'de> serde::Deserialize<'de> for PassportData {
             }
         }
         
-        const FIELDS: &'static [&'static str] = &[
+        const FIELDS: &[&str] = &[
             "signature",
             "public_key", 
             "document_hash",

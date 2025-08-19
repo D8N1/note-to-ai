@@ -259,7 +259,7 @@ impl VectorSearchEngine {
                     content: block.content.clone(),
                     start_pos: block.position.start,
                     end_pos: block.position.end,
-                    _embedding_id: format!("{}_{}", doc_id, i),
+                    _embedding_id: format!("{doc_id}_{i}"),
                 }
             }).collect(),
         };
@@ -331,7 +331,7 @@ impl VectorSearchEngine {
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
                 )?;
                 for (i, block_emb) in block_embeddings.iter().enumerate() {
-                    let block_id = format!("{}_{}", doc_path, i);
+                    let block_id = format!("{doc_path}_{i}");
                     let embedding_bytes = {
                         let mut v = Vec::with_capacity(block_emb.vector.len() * 4);
                         for &val in &block_emb.vector { v.extend_from_slice(&val.to_le_bytes()); }
@@ -424,7 +424,7 @@ impl VectorSearchEngine {
             .iter()
             .enumerate()
             .map(|(i, block_emb)| {
-                let block_id = format!("{}_{}", doc_id, i);
+                let block_id = format!("{doc_id}_{i}");
                 let embedding_bytes = self.serialize_embedding(&block_emb.vector)?;
                 let content = block_emb.content.clone();
                 let start_pos = 0i64; // TODO: carry real positions
@@ -874,10 +874,10 @@ impl VectorSearchEngine {
             let mut snippet = content[start..end].to_string();
             
             if start > 0 {
-                snippet = format!("...{}", snippet);
+                snippet = format!("...{snippet}");
             }
             if end < content.len() {
-                snippet = format!("{}...", snippet);
+                snippet = format!("{snippet}...");
             }
             
             snippet

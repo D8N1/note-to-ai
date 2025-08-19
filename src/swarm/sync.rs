@@ -1,12 +1,12 @@
 use crate::Result;
 use crate::swarm::ipfs::{VaultEntry, VaultFileType, DeviceType};
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn, error, debug};
+use tracing::{info, warn, debug};
 
 /// Cross-device vault synchronization engine
 /// Handles conflict resolution, CRDT operations, and Android ↔ M1 MacBook sync

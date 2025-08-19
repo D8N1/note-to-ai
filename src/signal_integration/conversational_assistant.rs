@@ -2,17 +2,15 @@
 // Conversational AI assistant for Signal "Note to Self" integration
 
 use crate::Result;
-use crate::signal_integration::api_compatibility::*;
 use crate::signal_integration::note_to_self::{
-    IncomingMessage, MessageType, ProcessedMessage, MessageContext, UXConfig, ResponseStyle, BriefFormat
+    IncomingMessage, MessageType, ProcessedMessage, UXConfig, ResponseStyle
 };
-use anyhow::{Context, anyhow};
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime};
 use tokio::sync::RwLock;
-use tracing::{info, warn, error, debug};
+use tracing::debug;
 use uuid::Uuid;
 
 // Simple message type for compatibility
@@ -99,7 +97,7 @@ impl SimpleHermesIntegration {
         let mut response = String::from("🔍 Research Plan:\n\n");
         
         for topic in &topics {
-            response.push_str(&format!("• {}\n", topic));
+            response.push_str(&format!("• {topic}\n"));
         }
         
         response.push_str("\n📋 Next Steps:\n");
@@ -150,7 +148,7 @@ impl SimpleHermesIntegration {
         let mut response = String::from("✅ Task Management:\n\n");
         
         for task in &tasks {
-            response.push_str(&format!("• {}\n", task));
+            response.push_str(&format!("• {task}\n"));
         }
         
         response.push_str("\n🎯 Priority Assessment:\n");
@@ -447,6 +445,12 @@ impl ConversationTiming {
     }
 }
 
+impl Default for InterruptionManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InterruptionManager {
     pub fn new() -> Self {
         Self {
@@ -589,7 +593,7 @@ impl ConversationalAssistant {
             }
             MessageType::Document { doc_path, filename, caption } => {
                 let text = caption.clone().unwrap_or_else(|| {
-                    format!("Document shared: {}", filename)
+                    format!("Document shared: {filename}")
                 });
                 Ok(text)
             }
@@ -599,13 +603,13 @@ impl ConversationalAssistant {
                 for attachment in attachments {
                     match attachment {
                         crate::signal_integration::note_to_self::Attachment::Voice { path, duration } => {
-                            combined.push_str(&format!("\n[Voice note: {} seconds]", duration));
+                            combined.push_str(&format!("\n[Voice note: {duration} seconds]"));
                         }
                         crate::signal_integration::note_to_self::Attachment::Image { path } => {
                             combined.push_str(&format!("\n[Image: {}]", path.display()));
                         }
                         crate::signal_integration::note_to_self::Attachment::Document { path, filename } => {
-                            combined.push_str(&format!("\n[Document: {}]", filename));
+                            combined.push_str(&format!("\n[Document: {filename}]"));
                         }
                     }
                 }
@@ -808,7 +812,7 @@ impl ConversationalAssistant {
         };
         
         Ok(ConversationalResponse {
-            content: format!("{}\n\nI'll track these and remind you as needed. Want me to suggest optimal timing or dependencies?", summary),
+            content: format!("{summary}\n\nI'll track these and remind you as needed. Want me to suggest optimal timing or dependencies?"),
             response_type: ResponseType::ActionableAdvice,
             action_items,
             follow_up_questions: vec![
@@ -930,8 +934,7 @@ impl ConversationalAssistant {
             - Strategic Implications\n\
             - Recommended Actions\n\
             - Key Questions to Consider\n\n\
-            Keep responses concise but comprehensive. Focus on actionable intelligence.{}",
-            context_section
+            Keep responses concise but comprehensive. Focus on actionable intelligence.{context_section}"
         )
     }
     
@@ -951,14 +954,13 @@ impl ConversationalAssistant {
         };
         
         format!(
-            "You are a knowledgeable personal assistant. {}. \
-            Provide helpful, contextual responses that add value to the conversation.",
-            style_instruction
+            "You are a knowledgeable personal assistant. {style_instruction}. \
+            Provide helpful, contextual responses that add value to the conversation."
         )
     }
     
     fn format_strategic_brief(&self, content: &str) -> String {
-        format!("# Strategic Brief\n\n{}", content)
+        format!("# Strategic Brief\n\n{content}")
     }
     
     fn extract_action_items(&self, content: &str) -> Vec<ActionItem> {

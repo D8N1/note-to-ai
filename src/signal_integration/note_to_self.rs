@@ -2,14 +2,14 @@
 // Signal "Note to Self" message processing and UX handling
 
 use crate::Result;
-use crate::ai::hermes_integration::{HermesIntegration, HermesMessage};
+use crate::ai::hermes_integration::HermesMessage;
 use crate::signal_integration::api_compatibility::*;
-use anyhow::{Context, anyhow};
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
-use tracing::{info, warn, error, debug};
+use tracing::{info, error, debug};
 use uuid::Uuid;
 
 /// Types of Signal messages we can process
@@ -307,7 +307,7 @@ impl NoteToSelfProcessor {
             MessageType::Document { doc_path, filename, caption } => {
                 // TODO: Implement document parsing
                 let text = caption.clone().unwrap_or_else(|| {
-                    format!("Document: {}", filename)
+                    format!("Document: {filename}")
                 });
                 
                 Ok(ExtractedContent {
@@ -331,7 +331,7 @@ impl NoteToSelfProcessor {
                     match attachment {
                         Attachment::Voice { path, .. } => {
                             let transcription = self.whisper.transcribe_file(path).await?;
-                            combined_text.push_str(&format!("\n\n[Voice]: {}", transcription));
+                            combined_text.push_str(&format!("\n\n[Voice]: {transcription}"));
                             all_transcriptions.push(transcription.clone());
                             total_confidence += 0.8; // Placeholder confidence
                             confidence_count += 1;
@@ -341,7 +341,7 @@ impl NoteToSelfProcessor {
                             images.push(path.clone());
                         }
                         Attachment::Document { path, filename } => {
-                            combined_text.push_str(&format!("\n\n[Document]: {}", filename));
+                            combined_text.push_str(&format!("\n\n[Document]: {filename}"));
                             documents.push(path.clone());
                         }
                     }
@@ -403,7 +403,7 @@ impl NoteToSelfProcessor {
         // Generate response
         let response = self.hermes.chat(
             &conversation_id,
-            &content,
+            content,
             None,
         ).await.context("Failed to generate AI response")?;
         
@@ -517,7 +517,7 @@ impl NoteToSelfProcessor {
         // TODO: Use NLP to extract proper tags
         // For now, use simple keyword extraction
         
-        let combined_text = format!("{} {}", original_text, ai_response).to_lowercase();
+        let combined_text = format!("{original_text} {ai_response}").to_lowercase();
         let mut tags = vec![];
         
         // Common topic tags
@@ -550,7 +550,7 @@ impl NoteToSelfProcessor {
             .unwrap()
             .format("%Y-%m-%d")
             .to_string();
-        tags.push(format!("date-{}", date));
+        tags.push(format!("date-{date}"));
         
         Ok(tags)
     }
@@ -578,7 +578,7 @@ impl NoteToSelfProcessor {
             .format("%H-%M")
             .to_string();
         
-        let filename = format!("ai-response-{}-{}.md", date, time);
+        let filename = format!("ai-response-{date}-{time}.md");
         let relative_path = PathBuf::from("AI Responses")
             .join(&date)
             .join(&filename);
@@ -646,7 +646,7 @@ impl NoteToSelfProcessor {
                 "## Action Items\n\n{}\n\n",
                 brief.action_items
                     .iter()
-                    .map(|item| format!("- [ ] {}", item))
+                    .map(|item| format!("- [ ] {item}"))
                     .collect::<Vec<_>>()
                     .join("\n")
             )
@@ -659,7 +659,7 @@ impl NoteToSelfProcessor {
                 "## Generated Questions\n\n{}\n\n",
                 brief.questions
                     .iter()
-                    .map(|q| format!("- {}", q))
+                    .map(|q| format!("- {q}"))
                     .collect::<Vec<_>>()
                     .join("\n")
             )
@@ -672,7 +672,7 @@ impl NoteToSelfProcessor {
                 "## Related Notes\n\n{}\n\n",
                 brief.related_notes
                     .iter()
-                    .map(|note| format!("- [[{}]]", note))
+                    .map(|note| format!("- [[{note}]]"))
                     .collect::<Vec<_>>()
                     .join("\n")
             )
@@ -681,13 +681,7 @@ impl NoteToSelfProcessor {
         };
         
         Ok(format!(
-            "{}{}{}{}{}{}", 
-            frontmatter, 
-            original_section, 
-            ai_section, 
-            action_items_section, 
-            questions_section, 
-            related_section
+            "{frontmatter}{original_section}{ai_section}{action_items_section}{questions_section}{related_section}"
         ))
     }
     

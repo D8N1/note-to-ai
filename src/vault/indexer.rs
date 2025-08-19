@@ -378,7 +378,7 @@ impl VaultIndexer {
         
         let mut stmt = conn.prepare("SELECT path FROM file_index")?;
         let paths: Vec<String> = stmt.query_map([], |row| {
-            Ok(row.get::<_, String>(0)?)
+            row.get::<_, String>(0)
         })?.collect::<Result<Vec<_>, _>>()?;
 
         let mut deleted_count = 0;
@@ -390,7 +390,7 @@ impl VaultIndexer {
                     params![path_str],
                 )?;
                 deleted_count += 1;
-                self.logger.debug(&format!("Removed deleted file from index: {}", path_str));
+                self.logger.debug(&format!("Removed deleted file from index: {path_str}"));
             }
         }
 

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use serde::{Deserialize, Serialize};
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Document {
@@ -48,18 +48,24 @@ pub struct ContextBuilder {
     context_templates: Arc<RwLock<HashMap<String, String>>>,
 }
 
+impl Default for ContextBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ContextBuilder {
     pub fn new() -> Self {
-        let builder = Self {
-            documents: Arc::new(RwLock::new(HashMap::new())),
-            embeddings_cache: Arc::new(RwLock::new(HashMap::new())),
-            context_templates: Arc::new(RwLock::new(HashMap::new())),
-        };
+        
         
         // TODO: Initialize default templates in a better way
         // For now, just return the builder without async initialization
         
-        builder
+        Self {
+            documents: Arc::new(RwLock::new(HashMap::new())),
+            embeddings_cache: Arc::new(RwLock::new(HashMap::new())),
+            context_templates: Arc::new(RwLock::new(HashMap::new())),
+        }
     }
 
     async fn init_default_templates(&self) {
@@ -308,7 +314,7 @@ impl ContextBuilder {
         }
         
         for (source, count) in source_counts {
-            stats.insert(format!("source_{}", source), count);
+            stats.insert(format!("source_{source}"), count);
         }
         
         stats

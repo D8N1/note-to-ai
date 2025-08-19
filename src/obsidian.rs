@@ -2,10 +2,9 @@
 use crate::Result;
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
-use std::fs;
 use std::path::{Path, PathBuf};
 use tokio::fs as async_fs;
-use tracing::{info, warn};
+use tracing::info;
 
 /// Configuration for Obsidian integration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -125,7 +124,7 @@ impl ObsidianManager {
                 
                 // Check if any words from the filename appear in the content
                 if content.to_lowercase().contains(&filename_str.to_lowercase()) {
-                    let obsidian_link = format!("[[{}]]", filename_str);
+                    let obsidian_link = format!("[[{filename_str}]]");
                     if !related.contains(&obsidian_link) {
                         related.push(obsidian_link);
                     }
@@ -142,7 +141,7 @@ impl ObsidianManager {
         
         // Title
         let query_summary = self.summarize_query(&response.query);
-        content.push_str(&format!("# AI Response: {}\n\n", query_summary));
+        content.push_str(&format!("# AI Response: {query_summary}\n\n"));
         
         // Metadata
         content.push_str("## Query Details\n");
@@ -164,7 +163,7 @@ impl ObsidianManager {
         if !response.sources.is_empty() {
             content.push_str("## Sources\n");
             for source in &response.sources {
-                content.push_str(&format!("- [[{}]]\n", source));
+                content.push_str(&format!("- [[{source}]]\n"));
             }
             content.push('\n');
         }
@@ -177,7 +176,7 @@ impl ObsidianManager {
                 if !related.is_empty() {
                     content.push_str("## Related Notes\n");
                     for link in related {
-                        content.push_str(&format!("- {}\n", link));
+                        content.push_str(&format!("- {link}\n"));
                     }
                     content.push('\n');
                 }
@@ -200,8 +199,8 @@ impl ObsidianManager {
         let timestamp = response.timestamp.format("%H%M%S").to_string();
         let query_summary = self.summarize_query(&response.query);
         
-        let filename = format!("{} - {}.md", timestamp, query_summary);
-        let relative_path = format!("AI Responses/{}/{}", date, filename);
+        let filename = format!("{timestamp} - {query_summary}.md");
+        let relative_path = format!("AI Responses/{date}/{filename}");
         
         Ok(self.config.vault_path.join(relative_path))
     }
@@ -209,7 +208,7 @@ impl ObsidianManager {
     /// Generate file path for daily note
     fn generate_daily_note_path(&self) -> Result<PathBuf> {
         let date = Local::now().format("%Y-%m-%d").to_string();
-        let filename = format!("daily-notes-{}.md", date);
+        let filename = format!("daily-notes-{date}.md");
         Ok(self.config.vault_path.join(filename))
     }
 
@@ -262,14 +261,14 @@ impl ObsidianManager {
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
             
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "md") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "md") {
                 files.push(path);
             } else if path.is_dir() {
                 // Simple one-level recursion only to avoid complex async recursion
                 let mut sub_entries = async_fs::read_dir(&path).await?;
                 while let Some(sub_entry) = sub_entries.next_entry().await? {
                     let sub_path = sub_entry.path();
-                    if sub_path.is_file() && sub_path.extension().map_or(false, |ext| ext == "md") {
+                    if sub_path.is_file() && sub_path.extension().is_some_and(|ext| ext == "md") {
                         files.push(sub_path);
                     }
                 }

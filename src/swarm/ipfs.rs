@@ -1,14 +1,14 @@
 use crate::Result;
 use crate::crypto::Crypto;
 use crate::vault::storage::VaultStorage;
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::{RwLock, Mutex};
 use tokio::time::{Duration, interval};
-use tracing::{info, warn, error, debug};
+use tracing::{info, debug};
 use uuid::Uuid;
 
 /// Configuration for IPFS private swarm
@@ -264,7 +264,7 @@ impl IPFSNode {
             
             // Add to connected peers (mock)
             let peer_info = PeerInfo {
-                peer_id: format!("peer_{}", Uuid::new_v4().to_string()[..8].to_string()),
+                peer_id: format!("peer_{}", &Uuid::new_v4().to_string()[..8]),
                 device_type: self.infer_device_type(peer_addr),
                 last_seen: self.current_timestamp(),
                 connection_quality: ConnectionQuality::Good,
@@ -397,7 +397,7 @@ impl IPFSNode {
     }
     
     async fn fetch_remote_vault_entries(&self) -> Result<Vec<VaultEntry>> {
-        let mut remote_entries = Vec::new();
+        let remote_entries = Vec::new();
         
         // In real implementation:
         // 1. Query each connected peer for their vault state
@@ -521,7 +521,7 @@ impl Default for SwarmConfig {
             swarm_key: "demo_swarm_key_replace_in_production".to_string(),
             bootstrap_peers: vec![],
             node_config: NodeConfig {
-                node_name: format!("node_{}", Uuid::new_v4().to_string()[..8].to_string()),
+                node_name: format!("node_{}", &Uuid::new_v4().to_string()[..8]),
                 device_type: DeviceType::M1MacBook,
                 max_storage_gb: 10,
                 max_bandwidth_mbps: 100,

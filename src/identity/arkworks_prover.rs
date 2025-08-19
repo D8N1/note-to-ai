@@ -17,7 +17,6 @@ use ark_snark::SNARK;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError};
 use ark_r1cs_std::prelude::*;
 use ark_r1cs_std::fields::fp::FpVar;
-use ark_std::rand::RngCore;
 
 /// Arkworks Groth16 prover for high-security operations
 pub struct ArkworksProver {
@@ -65,12 +64,12 @@ impl ArkworksProver {
             // Load existing keys
             let pk_bytes = tokio::fs::read(&pk_path).await
                 .map_err(|e| ProvingError::BackendInitialization {
-                    message: format!("Failed to read proving key: {}", e),
+                    message: format!("Failed to read proving key: {e}"),
                 })?;
             
             let vk_bytes = tokio::fs::read(&vk_path).await
                 .map_err(|e| ProvingError::BackendInitialization {
-                    message: format!("Failed to read verifying key: {}", e),
+                    message: format!("Failed to read verifying key: {e}"),
                 })?;
             
             self.proving_key = Some(self.deserialize_proving_key(&pk_bytes)?);
@@ -102,7 +101,7 @@ impl ArkworksProver {
         // Run the trusted setup
         let (pk, vk) = Groth16::<Bls12_381>::circuit_specific_setup(dummy_circuit, &mut rng)
             .map_err(|e| ProvingError::BackendInitialization {
-                message: format!("Key generation failed: {:?}", e),
+                message: format!("Key generation failed: {e:?}"),
             })?;
         
         self.proving_key = Some(pk);
@@ -116,7 +115,7 @@ impl ArkworksProver {
         // Create directory if it doesn't exist
         tokio::fs::create_dir_all(keys_path).await
             .map_err(|e| ProvingError::BackendInitialization {
-                message: format!("Failed to create keys directory: {}", e),
+                message: format!("Failed to create keys directory: {e}"),
             })?;
         
         if let (Some(pk), Some(vk)) = (&self.proving_key, &self.verifying_key) {
@@ -128,12 +127,12 @@ impl ArkworksProver {
             
             tokio::fs::write(&pk_path, pk_bytes).await
                 .map_err(|e| ProvingError::BackendInitialization {
-                    message: format!("Failed to save proving key: {}", e),
+                    message: format!("Failed to save proving key: {e}"),
                 })?;
             
             tokio::fs::write(&vk_path, vk_bytes).await
                 .map_err(|e| ProvingError::BackendInitialization {
-                    message: format!("Failed to save verifying key: {}", e),
+                    message: format!("Failed to save verifying key: {e}"),
                 })?;
         }
         
@@ -146,7 +145,7 @@ impl ArkworksProver {
         let mut serialized = Vec::new();
         pk.serialize_compressed(&mut serialized)
             .map_err(|e| ProvingError::BackendInitialization {
-                message: format!("Proving key serialization failed: {:?}", e),
+                message: format!("Proving key serialization failed: {e:?}"),
             })?;
         
         Ok(serialized)
@@ -158,7 +157,7 @@ impl ArkworksProver {
         let mut serialized = Vec::new();
         vk.serialize_compressed(&mut serialized)
             .map_err(|e| ProvingError::BackendInitialization {
-                message: format!("Verifying key serialization failed: {:?}", e),
+                message: format!("Verifying key serialization failed: {e:?}"),
             })?;
         
         Ok(serialized)
@@ -169,7 +168,7 @@ impl ArkworksProver {
         
         ProvingKey::<Bls12_381>::deserialize_compressed(bytes)
             .map_err(|e| ProvingError::BackendInitialization {
-                message: format!("Proving key deserialization failed: {:?}", e),
+                message: format!("Proving key deserialization failed: {e:?}"),
             })
     }
     
@@ -178,7 +177,7 @@ impl ArkworksProver {
         
         VerifyingKey::<Bls12_381>::deserialize_compressed(bytes)
             .map_err(|e| ProvingError::BackendInitialization {
-                message: format!("Verifying key deserialization failed: {:?}", e),
+                message: format!("Verifying key deserialization failed: {e:?}"),
             })
     }
     
@@ -210,7 +209,7 @@ impl ArkworksProver {
         let mut proof_bytes = Vec::new();
         arkworks_proof.serialize_compressed(&mut proof_bytes)
             .map_err(|e| ProvingError::ProofGeneration {
-                message: format!("Proof serialization failed: {:?}", e),
+                message: format!("Proof serialization failed: {e:?}"),
             })?;
         
         let circuit_version = public_inputs.circuit_version;
@@ -227,7 +226,7 @@ impl ArkworksProver {
     
     /// Extract public inputs for verification
     fn extract_public_inputs(&self, inputs: &CircuitInputs) -> Vec<ark_bls12_381::Fr> {
-        use ark_ff::PrimeField;
+        
         
         let mut public_inputs = Vec::new();
         
@@ -287,7 +286,7 @@ impl ZkProver for ArkworksProver {
         // Generate proof
         let proof = Groth16::<Bls12_381>::prove(proving_key, circuit, &mut rng)
             .map_err(|e| ProvingError::ProofGeneration {
-                message: format!("Arkworks proof generation failed: {:?}", e),
+                message: format!("Arkworks proof generation failed: {e:?}"),
             })?;
         
         let proving_time = start_time.elapsed();
@@ -349,7 +348,7 @@ impl ZkProver for ArkworksProver {
         use ark_serialize::CanonicalDeserialize;
         let arkworks_proof = Proof::<Bls12_381>::deserialize_compressed(&proof.proof_bytes[..])
             .map_err(|e| ProvingError::ProofVerification {
-                message: format!("Proof deserialization failed: {:?}", e),
+                message: format!("Proof deserialization failed: {e:?}"),
             })?;
         
         // Create dummy circuit for public input extraction
@@ -363,7 +362,7 @@ impl ZkProver for ArkworksProver {
         // Verify proof
         let is_valid = Groth16::<Bls12_381>::verify(verifying_key, &public_inputs_fr, &arkworks_proof)
             .map_err(|e| ProvingError::ProofVerification {
-                message: format!("Arkworks verification failed: {:?}", e),
+                message: format!("Arkworks verification failed: {e:?}"),
             })?;
         
         tracing::info!("Arkworks verification result: {}", is_valid);
@@ -530,7 +529,7 @@ impl ConstraintSynthesizer<ark_bls12_381::Fr> for PassportCircuit {
         cs: ConstraintSystemRef<ark_bls12_381::Fr>,
     ) -> Result<(), SynthesisError> {
         use ark_r1cs_std::prelude::*;
-        use ark_ff::PrimeField;
+        
         
         // This is a simplified constraint system for demonstration
         // A real implementation would include:

@@ -8,14 +8,13 @@ use crate::obsidian::{ObsidianManager, ObsidianConfig, AIResponse};
 use crate::signal_integration::note_to_self::IncomingMessage;
 use crate::vault::storage::VaultStorage;
 use crate::swarm::ipfs::{IPFSNode, SwarmConfig, SwarmSyncStatus};
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 use chrono::{DateTime, Local};
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::sync::RwLock;
-use tracing::{info, warn, error, debug};
+use tracing::{info, debug};
 
 /// Complete distributed AI swarm orchestrator
 /// Handles the full voice-to-vault-to-AI workflow across devices
@@ -187,7 +186,7 @@ impl Swarm {
         info!("🌐 Synced to {} connected devices", result.sync_status.connected_peers);
         
         // Step 6: Update daily note with voice note summary
-        let daily_summary = format!("🎤 Voice note transcribed: {:.50}...", transcription);
+        let daily_summary = format!("🎤 Voice note transcribed: {transcription:.50}...");
         let daily_path = self.obsidian.append_to_daily_note(&daily_summary).await?;
         result.files_created.push(daily_path);
         
@@ -250,7 +249,7 @@ impl Swarm {
         
         // Save as AI response (research note)
         let ai_response = AIResponse {
-            query: format!("Research link: {}", url),
+            query: format!("Research link: {url}"),
             response: url_note_content,
             timestamp: Local::now(),
             model_used: "manual".to_string(),
@@ -392,7 +391,7 @@ impl Swarm {
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
             
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "md") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "md") {
                 files.push(path);
             } else if path.is_dir() {
                 Box::pin(self.scan_directory_recursive(&path, files)).await?;
@@ -406,7 +405,7 @@ impl Swarm {
         // Simple URL title extraction
         if let Ok(parsed) = url::Url::parse(url) {
             if let Some(host) = parsed.host_str() {
-                return format!("Link from {}", host);
+                return format!("Link from {host}");
             }
         }
         

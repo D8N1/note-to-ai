@@ -2,7 +2,6 @@
 
 use crate::signal_integration::api_compatibility::RelatedContext;
 use anyhow::Result;
-use std::time::SystemTime;
 
 pub struct SemanticSearchEngine {
     // Placeholder fields for compilation

@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn, error};
+use tracing::info;
 
 pub use conversational_assistant::{
     ConversationalAssistant, ConversationalResponse, IntentType,
@@ -38,6 +38,7 @@ pub struct SignalIntegrationService {
 
 /// Configuration for Signal integration service
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct SignalIntegrationConfig {
     pub signal: SignalConfig,
     pub ux: UXConfig,
@@ -95,16 +96,6 @@ impl Default for PerformanceConfig {
     }
 }
 
-impl Default for SignalIntegrationConfig {
-    fn default() -> Self {
-        Self {
-            signal: SignalConfig::default(),
-            ux: UXConfig::default(),
-            features: FeatureConfig::default(),
-            performance: PerformanceConfig::default(),
-        }
-    }
-}
 
 impl SignalIntegrationService {
     /// Create new Signal integration service
@@ -304,7 +295,7 @@ impl SignalIntegrationService {
         // Link account if verification code is provided
         if let Some(code) = verification_code {
             let output = tokio::process::Command::new(&config.signal_cli_path)
-                .args(&[
+                .args([
                     "--config", config.data_dir.to_str().unwrap(),
                     "--account", &config.account_phone,
                     "verify",
@@ -323,7 +314,7 @@ impl SignalIntegrationService {
         } else {
             // Register account (will need verification)
             let output = tokio::process::Command::new(&config.signal_cli_path)
-                .args(&[
+                .args([
                     "--config", config.data_dir.to_str().unwrap(),
                     "register",
                     &config.account_phone,
@@ -356,7 +347,7 @@ impl SignalIntegrationService {
         let test_message = "🤖 Signal AI Assistant is now active!\n\nI'm ready to help with your notes, questions, and strategic insights. Just send me a message and I'll respond naturally.";
         
         let output = tokio::process::Command::new(&config.signal_cli_path)
-            .args(&[
+            .args([
                 "--config", config.data_dir.to_str().unwrap(),
                 "--account", &config.account_phone,
                 "send",

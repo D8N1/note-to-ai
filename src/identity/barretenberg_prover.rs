@@ -2,7 +2,7 @@
 // Concrete implementation of Barretenberg UltraHonk prover for mobile optimization
 
 use crate::identity::proving_backend::{
-    CircuitInputs, PerformanceEstimate, ProofData, ProofMetrics, ProvingContext, 
+    CircuitInputs, PerformanceEstimate, ProofData, ProvingContext, 
     ProvingError, PublicInputs, VerificationContext, ZkProver, DeviceCapabilities
 };
 use async_trait::async_trait;
@@ -120,7 +120,7 @@ impl BarretenbergProver {
         );
         
         input_map.insert("timestamp".to_string(),
-            NoirValue::Field(inputs.public_inputs.timestamp.into())
+            NoirValue::Field(inputs.public_inputs.timestamp)
         );
         
         // Private inputs
@@ -220,7 +220,7 @@ impl BarretenbergProver {
         );
         
         input_map.insert("timestamp".to_string(),
-            NoirValue::Field(public_inputs.timestamp.into())
+            NoirValue::Field(public_inputs.timestamp)
         );
         
         Ok(input_map)

@@ -53,6 +53,12 @@ pub struct ModelSwitcher {
     strategy: Arc<RwLock<SwitchingStrategy>>,
 }
 
+impl Default for ModelSwitcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ModelSwitcher {
     pub fn new() -> Self {
         Self {

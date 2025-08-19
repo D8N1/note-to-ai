@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Result, Context};
 use serde::{Deserialize, Serialize};
 use regex::Regex;
-use pulldown_cmark::{Parser, Event, Tag, TagEnd, CowStr};
+use pulldown_cmark::{Parser, Event, Tag, TagEnd};
 use yaml_rust::{YamlLoader, Yaml};
 use chrono::{DateTime, Utc, NaiveDateTime};
 use crate::logger::Logger;
@@ -134,13 +134,13 @@ impl ObsidianParser {
         self.logger.debug(&format!("Parsing document: {}", path.display()));
 
         let (frontmatter, main_content) = self.extract_frontmatter(content)?;
-        let title = self.extract_title(path, &frontmatter, &main_content);
+        let title = self.extract_title(path, &frontmatter, main_content);
         
-        let links = self.extract_links(&main_content);
-        let tags = self.extract_tags(&main_content, &frontmatter);
-        let headings = self.extract_headings(&main_content);
-        let blocks = self.extract_blocks(&main_content)?;
-        let plain_text = self.extract_plain_text(&main_content);
+        let links = self.extract_links(main_content);
+        let tags = self.extract_tags(main_content, &frontmatter);
+        let headings = self.extract_headings(main_content);
+        let blocks = self.extract_blocks(main_content)?;
+        let plain_text = self.extract_plain_text(main_content);
         
         let metadata = DocumentMetadata {
             word_count: self.count_words(&plain_text),
@@ -346,7 +346,7 @@ impl ObsidianParser {
                 Ok(serde_json::Value::Object(json_obj))
             }
             Yaml::Null => Ok(serde_json::Value::Null),
-            _ => Ok(serde_json::Value::String(format!("{:?}", yaml))),
+            _ => Ok(serde_json::Value::String(format!("{yaml:?}"))),
         }
     }
 
@@ -374,7 +374,7 @@ impl ObsidianParser {
 
     fn extract_links(&self, content: &str) -> Vec<Link> {
         let mut links = Vec::new();
-        let mut position = 0;
+        let position = 0;
 
         // Extract wikilinks
         for cap in self.wikilink_regex.captures_iter(content) {
@@ -415,31 +415,28 @@ impl ObsidianParser {
 
         // Extract markdown links using pulldown-cmark
         let parser = Parser::new(content);
-        let mut current_pos = 0;
+        let current_pos = 0;
         
         for event in parser {
-            match event {
-                Event::Start(Tag::Link { dest_url, .. }) => {
-                    let url = dest_url.to_string();
-                    if url.starts_with("http") {
-                        let text_position = self.calculate_position(content, current_pos);
-                        links.push(Link {
-                            link_type: LinkType::ExternalLink,
-                            target: url,
-                            alias: None,
-                            position: text_position,
-                        });
-                    } else {
-                        let text_position = self.calculate_position(content, current_pos);
-                        links.push(Link {
-                            link_type: LinkType::MarkdownLink,
-                            target: url,
-                            alias: None,
-                            position: text_position,
-                        });
-                    }
+            if let Event::Start(Tag::Link { dest_url, .. }) = event {
+                let url = dest_url.to_string();
+                if url.starts_with("http") {
+                    let text_position = self.calculate_position(content, current_pos);
+                    links.push(Link {
+                        link_type: LinkType::ExternalLink,
+                        target: url,
+                        alias: None,
+                        position: text_position,
+                    });
+                } else {
+                    let text_position = self.calculate_position(content, current_pos);
+                    links.push(Link {
+                        link_type: LinkType::MarkdownLink,
+                        target: url,
+                        alias: None,
+                        position: text_position,
+                    });
                 }
-                _ => {}
             }
         }
 
@@ -471,7 +468,7 @@ impl ObsidianParser {
         let parser = Parser::new(content);
         let mut current_heading_level = 0;
         let mut current_heading_text = String::new();
-        let mut current_pos = 0;
+        let current_pos = 0;
 
         for event in parser {
             match event {
@@ -508,7 +505,7 @@ impl ObsidianParser {
     fn extract_blocks(&self, content: &str) -> Result<Vec<Block>> {
         let mut blocks = Vec::new();
         let parser = Parser::new(content);
-        let mut current_pos = 0;
+        let current_pos = 0;
         let mut in_code_block = false;
         let mut code_lang: Option<String> = None;
         let mut current_content = String::new();
@@ -681,7 +678,7 @@ impl ObsidianParser {
     fn estimate_reading_time(&self, text: &str) -> usize {
         const AVERAGE_WPM: usize = 200;
         let word_count = self.count_words(text);
-        (word_count + AVERAGE_WPM - 1) / AVERAGE_WPM // Ceiling division
+        word_count.div_ceil(AVERAGE_WPM) // Ceiling division
     }
 
     fn calculate_checksum(&self, content: &str) -> String {

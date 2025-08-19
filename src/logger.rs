@@ -1,6 +1,5 @@
 use tracing::{info, warn, error, debug};
 use tracing_subscriber::{fmt, EnvFilter, prelude::*};
-use anyhow::Result;
 use crate::config::settings::LoggingConfig;
 
 pub struct Logger {

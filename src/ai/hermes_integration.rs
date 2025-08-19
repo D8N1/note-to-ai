@@ -176,7 +176,7 @@ impl HermesIntegration {
             };
 
             let context = self.context_builder.build_context(&query, &window, Some("qa")).await?;
-            format!("{}\n\nUser Message: {}", context, user_message)
+            format!("{context}\n\nUser Message: {user_message}")
         } else {
             user_message.to_string()
         };
@@ -380,7 +380,7 @@ impl HermesIntegration {
         }
         
         for (role, count) in role_counts {
-            stats.insert(format!("messages_{}", role), count);
+            stats.insert(format!("messages_{role}"), count);
         }
         
         Ok(stats)

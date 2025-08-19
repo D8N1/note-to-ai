@@ -7,7 +7,6 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use super::Vault;
-use super::parser::ParsedDocument;
 
 /// AI Agent types for specialization in the knowledge system
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -768,9 +767,9 @@ template: true
             let mut lines: Vec<&str> = content.lines().collect();
             if lines.len() > 1 && lines[0] == "---" {
                 if let Some(end_idx) = lines.iter().skip(1).position(|&line| line == "---") {
-                    let agent_line = format!("agent: \"{}\"", agent_id);
+                    let agent_line = format!("agent: \"{agent_id}\"");
                     let agent_type_line = format!("agent_type: \"{:?}\"", agent.agent_type);
-                    let created_line = format!("created_by_ai: true");
+                    let created_line = "created_by_ai: true".to_string();
                     
                     lines.insert(end_idx + 1, &agent_line);
                     lines.insert(end_idx + 2, &agent_type_line);

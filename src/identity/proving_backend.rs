@@ -248,7 +248,7 @@ impl<'de> serde::Deserialize<'de> for PrivateInputs {
     where
         D: serde::Deserializer<'de>,
     {
-        use serde::de::{self, Deserialize, Deserializer, MapAccess, Visitor};
+        use serde::de::{self, Deserializer, MapAccess, Visitor};
         use std::fmt;
         
         #[derive(Deserialize)]
@@ -375,7 +375,7 @@ impl<'de> serde::Deserialize<'de> for PrivateInputs {
             }
         }
         
-        const FIELDS: &'static [&'static str] = &[
+        const FIELDS: &[&str] = &[
             "passport_signature",
             "passport_pubkey", 
             "document_hash",

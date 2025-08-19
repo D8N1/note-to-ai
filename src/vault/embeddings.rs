@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
-use anyhow::{Result, Context};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use crate::logger::Logger;
@@ -67,13 +67,13 @@ impl Embeddings {
         let mut models = self.models.write().await;
         let model_name = model.name.clone();
         models.insert(model_name.clone(), model);
-        self.logger.info(&format!("Added embedding model: {}", model_name));
+        self.logger.info(&format!("Added embedding model: {model_name}"));
         Ok(())
     }
 
     pub async fn embed_text(&self, text: &str, model_name: &str) -> Result<Vec<f32>> {
         // Check cache first
-        let cache_key = format!("{}:{}", model_name, text);
+        let cache_key = format!("{model_name}:{text}");
         {
             let cache = self.cache.read().await;
             if let Some(embedding) = cache.get(&cache_key) {
@@ -106,7 +106,7 @@ impl Embeddings {
             embedding.push(hash_component);
         }
         
-        self.logger.info(&format!("Generated dummy embedding for '{}' using model '{}'", text, model_name));
+        self.logger.info(&format!("Generated dummy embedding for '{text}' using model '{model_name}'"));
         Ok(embedding)
     }
 
@@ -173,7 +173,7 @@ impl Embeddings {
             created_at: chrono::Utc::now(),
         };
         
-        self.logger.info(&format!("Loaded dummy embedding model from {:?}", model_path));
+        self.logger.info(&format!("Loaded dummy embedding model from {model_path:?}"));
         Ok(model)
     }
 

@@ -38,7 +38,7 @@ impl AudioProcessor {
         let file_size = metadata.len();
         
         // Rough estimation: 1MB ≈ 1 minute for typical voice recording
-        let estimated_seconds = file_size / (1024 * 1024).max(1);
+        let estimated_seconds = file_size / (1024 * 1024);
         
         Ok(Duration::from_secs(estimated_seconds.min(3600))) // Cap at 1 hour
     }

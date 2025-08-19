@@ -8,7 +8,6 @@ use crate::signal_integration::conversational_assistant::{
 use crate::signal_integration::note_to_self::{IncomingMessage, MessageType, Attachment};
 use anyhow::{Context, anyhow};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -16,7 +15,6 @@ use tokio::sync::{RwLock, mpsc};
 use tokio::time::sleep;
 use tokio::io::AsyncBufReadExt;
 use tracing::{info, warn, error, debug};
-use url::Url;
 use uuid::Uuid;
 
 /// Signal CLI configuration
@@ -47,6 +45,7 @@ pub struct SignalEnvelope {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct SignalDataMessage {
     pub body: Option<String>,
     pub attachments: Option<Vec<SignalAttachment>>,
@@ -297,7 +296,7 @@ impl SignalConnector {
         info!("Starting signal-cli listener");
         
         let mut cmd = tokio::process::Command::new(&config.signal_cli_path);
-        cmd.args(&[
+        cmd.args([
             "--config", config.data_dir.to_str().unwrap(),
             "--account", &config.account_phone,
             "daemon",
@@ -544,7 +543,7 @@ impl SignalConnector {
         
         // Use signal-cli to download attachment
         let output = tokio::process::Command::new(&config.signal_cli_path)
-            .args(&[
+            .args([
                 "--config", config.data_dir.to_str().unwrap(),
                 "--account", &config.account_phone,
                 "receive",
@@ -578,7 +577,7 @@ impl SignalConnector {
         debug!("Sending Signal response: {}", response.content);
         
         let mut cmd = tokio::process::Command::new(&config.signal_cli_path);
-        cmd.args(&[
+        cmd.args([
             "--config", config.data_dir.to_str().unwrap(),
             "--account", &config.account_phone,
             "send",
@@ -613,7 +612,7 @@ impl SignalConnector {
         debug!("Sending proactive insight: {}", insight.topic);
         
         let mut cmd = tokio::process::Command::new(&config.signal_cli_path);
-        cmd.args(&[
+        cmd.args([
             "--config", config.data_dir.to_str().unwrap(),
             "--account", &config.account_phone,
             "send",
@@ -655,7 +654,7 @@ impl SignalConnector {
         info!("Testing Signal CLI connection");
         
         let output = tokio::process::Command::new(&self.config.signal_cli_path)
-            .args(&[
+            .args([
                 "--config", self.config.data_dir.to_str().unwrap(),
                 "--account", &self.config.account_phone,
                 "listIdentities",
@@ -666,7 +665,7 @@ impl SignalConnector {
         
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow!("Signal CLI connection test failed: {}", stderr).into());
+            return Err(anyhow!("Signal CLI connection test failed: {}", stderr));
         }
         
         info!("Signal CLI connection test successful");
@@ -675,16 +674,6 @@ impl SignalConnector {
 }
 
 // Fix compilation error in SignalDataMessage default implementation
-impl Default for SignalDataMessage {
-    fn default() -> Self {
-        Self {
-            body: None,
-            attachments: None,
-            timestamp: None,
-            group_info: None,
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

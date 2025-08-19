@@ -1,11 +1,10 @@
 use crate::Result;
-use anyhow::anyhow;
 use ark_bn254::{Bn254, Fr};
 use ark_groth16::{Groth16, Proof, ProvingKey, VerifyingKey, prepare_verifying_key};
 use ark_groth16::r1cs_to_qap::LibsnarkReduction;
 use ark_snark::SNARK;
 use ark_relations::r1cs::{
-    ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable, Namespace,
+    ConstraintSynthesizer, ConstraintSystemRef, SynthesisError, Variable,
 };
 use ark_relations::lc;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
