@@ -176,6 +176,7 @@ handOFF.txt
 code_summary.txt
 consolidate.sh
 CONSOLIDATION_ANALYSIS.md
+Applications Developer- Real Implementation Directive.txt
 
 # Keep important files (override patterns above)
 !models/model_registry.toml
