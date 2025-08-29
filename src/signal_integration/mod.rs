@@ -6,6 +6,10 @@ pub mod conversational_assistant;
 pub mod signal_connector;
 pub mod api_compatibility;
 pub mod device_linking;
+pub mod client;
+pub mod protocol_simple;
+pub mod secure_client;
+pub mod integration_tests;
 
 use crate::Result;
 use anyhow::{Context, anyhow};

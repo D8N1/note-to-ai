@@ -102,6 +102,9 @@ pub enum Commands {
         action: SignalAction,
     },
     
+    /// Test Signal Protocol implementation
+    TestSignal,
+    
     /// Test Obsidian integration
     Obsidian {
         #[command(subcommand)]
@@ -251,6 +254,11 @@ pub async fn handle_command(cli: Cli) -> Result<()> {
                     // TODO: Show Signal status
                 }
             }
+        }
+        
+        Some(Commands::TestSignal) => {
+            let app = NoteToAI::new(&cli.config).await?;
+            app.test_signal_protocol().await?;
         }
         
         Some(Commands::Obsidian { action }) => {

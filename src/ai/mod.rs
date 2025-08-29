@@ -3,8 +3,10 @@ pub mod context;
 pub mod hermes_integration;
 pub mod local_llm;
 pub mod model_switcher;
+pub mod model_loader; // REAL AI model loading - Day 2 Directive
 
 use crate::Result;
+use model_loader::{ModelLoader, EmbeddingModel};
 
 pub struct AI {
     hermes: Option<hermes_integration::HermesIntegration>,

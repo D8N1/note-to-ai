@@ -434,7 +434,7 @@ mod tests {
             assert!(processor.whisper_exe_path.is_some());
             
             let (model_size, path) = processor.get_model_info().unwrap();
-            println!("WhisperProcessor detected model: {} at {}", model_size, path.display());
+            println!("WhisperProcessor detected model: {:?} at {}", model_size, path.display());
             assert!(path.exists(), "Model file should exist at path: {:?}", path);
         } else {
             println!("No Whisper models detected - using fallback mode");
@@ -443,9 +443,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_real_ai_client_models() {
-        use crate::ai::api_client::AIClient;
+        use crate::ai::api_client::APIClient;
         
-        let ai_client = AIClient::new().await;
+        let ai_client = APIClient::new().await;
         println!("AI Client initialization result: {:?}", ai_client.is_ok());
         
         if let Ok(client) = ai_client {

@@ -50,6 +50,21 @@ hex = "0.4"
 base64 = "0.22"
 rand = "0.8"
 
+# Signal Protocol Security - REAL IMPLEMENTATION
+curve25519-dalek = { version = "4.0", features = ["rand_core"] }
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+aes = "0.8"
+aes-gcm = "0.10"
+hmac = "0.12"
+sha2 = "0.10"
+hkdf = "0.12"
+
+# Post-Quantum Cryptography - QUANTUM RESISTANT  
+# Note: Real PQ implementations coming soon
+# ml-kem = "0.2"  # NIST ML-KEM (Kyber successor)
+# kyber = "0.1"   # Fallback Kyber implementation  
+# pqcrypto-kyber = "0.16"  # Alternative PQ implementation
+
 # IPFS & Networking for private swarm
 # libp2p = "0.53"                      # P2P networking foundation
 # libp2p-swarm = "0.44"                # Swarm management
@@ -114,6 +129,10 @@ reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
 # Signal Integration Dependencies
 tokio-util = { version = "0.7", features = ["codec"] }
 futures-util = "0.3"
+candle-core = { version = "0.9.1", optional = true }
+candle-nn = { version = "0.9.1", optional = true }
+candle-transformers = { version = "0.9.1", optional = true }
+tokenizers = { version = "0.21.4", optional = true }
 
 # AI/ML Dependencies - TEMPORARILY DISABLED due to version conflicts
 # Will re-enable once Candle ecosystem stabilizes
@@ -141,7 +160,7 @@ harness = false
 
 [features]
 # Feature flags for gradual migration to hybrid backend
-default = ["arkworks-backend"]
+default = ["arkworks-backend", "ai-models"]
 
 # Backend selection features
 arkworks-backend = ["ark-std", "ark-ff", "ark-relations", "ark-bn254", "ark-groth16", "ark-serialize", "ark-snark", "ark-ec", "ark-bls12-381", "ark-crypto-primitives", "ark-r1cs-std", "num-bigint", "bincode"]
@@ -149,9 +168,16 @@ barretenberg-backend = [] # Placeholder for future Barretenberg integration
 mobile-optimized = ["barretenberg-backend"]
 hybrid-backend = ["arkworks-backend", "barretenberg-backend"]
 
+# AI model features - REAL IMPLEMENTATION
+ai-models = ["candle-core", "candle-nn", "candle-transformers", "tokenizers"]
+
 # Migration and testing features
 migration-testing = []
 performance-benchmarks = []
+candle-core = ["dep:candle-core"]
+candle-nn = ["dep:candle-nn"]
+candle-transformers = ["dep:candle-transformers"]
+tokenizers = ["dep:tokenizers"]
 
 [patch.crates-io]
 # Using published crates for better compatibility

@@ -1,5 +1,6 @@
 use crate::Result;
-use tokio::process::{Command, Stdio};
+use tokio::process::Command;
+use std::process::Stdio;
 use tokio::fs;
 use std::path::PathBuf;
 use std::env;
@@ -39,6 +40,7 @@ pub enum SignalError {
     Utf8Error(#[from] std::string::FromUtf8Error),
 }
 
+#[derive(Debug)]
 pub struct SignalClient {
     config_dir: PathBuf,
     phone_number: Option<String>,
@@ -134,7 +136,7 @@ impl SignalClient {
         info!("Sending message to {} ({} chars)", recipient, message.len());
         
         if message.is_empty() {
-            return Err(anyhow::anyhow!("Cannot send empty message"));
+            return Err(anyhow::anyhow!("Cannot send empty message").into());
         }
         
         let output = self.run_signal_command(&[
@@ -210,7 +212,7 @@ impl SignalClient {
             }
         }
         
-        Err(anyhow::anyhow!("Java 17+ not found. Please install OpenJDK 17 or set JAVA_HOME"))
+        Err(anyhow::anyhow!("Java 17+ not found. Please install OpenJDK 17 or set JAVA_HOME").into())
     }
     
     async fn get_config_dir() -> Result<PathBuf> {
@@ -231,7 +233,7 @@ impl SignalClient {
         
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Signal-CLI not working: {}", stderr));
+            return Err(anyhow::anyhow!("Signal-CLI not working: {}", stderr).into());
         }
         
         let version = String::from_utf8(output.stdout)?;
@@ -271,7 +273,7 @@ impl SignalClient {
             2. Run: signal-cli -a {} verify YOUR_CODE\n\
             3. Retry connection", 
             phone_number
-        ))
+        ).into())
     }
     
     async fn run_signal_command(&self, args: &[&str]) -> Result<String> {
@@ -294,7 +296,7 @@ impl SignalClient {
             return Err(anyhow::anyhow!(
                 "Signal command failed: {}\nStdout: {}", 
                 stderr, stdout
-            ));
+            ).into());
         }
         
         let stdout = String::from_utf8(output.stdout)?;
