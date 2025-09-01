@@ -30,9 +30,10 @@ dotenv = "0.15"
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite"] }
 rusqlite = { version = "0.30", features = ["bundled", "backup", "blob"] }
 
+# Real storage implementation - Day 3 (DuckDB only, Lance disabled due to Arrow conflicts)
+duckdb = { version = "1.3.2", features = ["bundled"] }
+
 # Future storage (when Arrow conflicts resolve)
-# duckdb = "0.10"                       # For analytics and complex queries  
-# lance = "0.13"                        # For vector embeddings and ML
 # Tracking issues:
 # - https://github.com/apache/arrow-rs/issues/4567 (chrono conflicts)
 # - https://github.com/lancedb/lance/issues/1234 (dependency resolution)

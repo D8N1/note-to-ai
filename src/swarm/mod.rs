@@ -325,22 +325,8 @@ impl Swarm {
     }
     
     async fn start_sync_monitoring(&self) -> Result<()> {
-        let ipfs_node = self.ipfs_node.clone();
-        let sync_status = self.sync_status.clone();
-        
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
-            
-            loop {
-                interval.tick().await;
-                
-                // Update sync status
-                if let Ok(status) = ipfs_node.get_sync_status().await {
-                    *sync_status.write().await = status;
-                }
-            }
-        });
-        
+        // TODO: Fix DuckDB threading issues - temporarily disabled background sync monitoring
+        info!("Sync monitoring initialized (background task disabled due to DuckDB threading)");
         Ok(())
     }
     
@@ -353,22 +339,8 @@ impl Swarm {
         // 3. Automatically trigger sync for changed files
         // 4. Handle conflicts with CRDT resolution
         
-        // Mock implementation
-        let ipfs_node = self.ipfs_node.clone();
-        
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
-            
-            loop {
-                interval.tick().await;
-                
-                // Check for vault changes and sync if needed
-                debug!("🔍 Checking vault for changes...");
-                
-                // In real implementation: detect actual file changes
-                // For now: no-op
-            }
-        });
+        // TODO: Fix DuckDB threading issues - temporarily disabled background vault watcher
+        info!("Vault watcher initialized (background task disabled due to DuckDB threading)");
         
         Ok(())
     }

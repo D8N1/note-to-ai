@@ -1,14 +1,12 @@
 // src/ai/model_loader.rs - REAL AI model loading implementation
 use anyhow::{anyhow, Result, Context};
-use std::path::{Path, PathBuf};
-use tracing::{info, warn, error, debug};
+use std::path::PathBuf;
+use tracing::{info, warn, debug};
 
 #[cfg(feature = "ai-models")]
 use candle_core::{Device, Tensor};
 #[cfg(feature = "ai-models")]
-use candle_nn::VarBuilder;
-#[cfg(feature = "ai-models")]
-use candle_transformers::models::bert::BertModel;
+use candle_core::backend::BackendDevice;
 
 /// Real AI model loader - NO MORE STUBS
 pub struct ModelLoader {
@@ -54,12 +52,14 @@ impl ModelLoader {
         {
             // Try Metal (for M1/M2 Macs)
             if candle_core::utils::metal_is_available() {
+                use candle_core::backend::BackendDevice;
                 info!("Using Metal device for AI acceleration");
                 return Ok(Device::Metal(candle_core::MetalDevice::new(0)?));
             }
             
-            // Try CUDA (for NVIDIA GPUs)
+            // Try CUDA (for NVIDIA GPUs)  
             if candle_core::utils::cuda_is_available() {
+                use candle_core::backend::BackendDevice;
                 info!("Using CUDA device for AI acceleration");
                 return Ok(Device::Cuda(candle_core::CudaDevice::new(0)?));
             }
@@ -99,13 +99,9 @@ impl ModelLoader {
         
         info!("Loading embedding model: {} from {}", model_name, model_info.path.display());
         
-        // Load the model using Candle
-        let model_data = std::fs::read(&model_info.path)
-            .context("Failed to read model file")?;
-            
         // For safetensors format
         if model_info.path.extension().and_then(|s| s.to_str()) == Some("safetensors") {
-            let tensors = candle_core::safetensors::load(&model_data, &self.device)
+            let tensors = candle_core::safetensors::load(&model_info.path, &self.device)
                 .context("Failed to load safetensors")?;
                 
             info!("Successfully loaded {} tensors from {}", tensors.len(), model_name);

@@ -1,6 +1,14 @@
 // Minimal semantic search implementation for compilation
 
-use crate::signal_integration::api_compatibility::RelatedContext;
+// use crate::signal_integration::api_compatibility::RelatedContext; // Deferred for MVP
+
+// Temporary MVP struct to replace signal integration
+#[derive(Debug, Clone)]
+pub struct RelatedContext {
+    pub context_type: String,
+    pub similarity_score: f32,
+    pub metadata: std::collections::HashMap<String, String>,
+}
 use anyhow::Result;
 
 pub struct SemanticSearchEngine {

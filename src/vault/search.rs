@@ -333,8 +333,8 @@ impl VectorSearchEngine {
                 for (i, block_emb) in block_embeddings.iter().enumerate() {
                     let block_id = format!("{doc_path}_{i}");
                     let embedding_bytes = {
-                        let mut v = Vec::with_capacity(block_emb.vector.len() * 4);
-                        for &val in &block_emb.vector { v.extend_from_slice(&val.to_le_bytes()); }
+                        let mut v = Vec::with_capacity(block_emb.embedding.len() * 4);
+                        for &val in &block_emb.embedding { v.extend_from_slice(&val.to_le_bytes()); }
                         v
                     };
                     let block_type = serde_json::to_string(&BlockType::Paragraph)?; // TODO carry real type
@@ -425,7 +425,7 @@ impl VectorSearchEngine {
             .enumerate()
             .map(|(i, block_emb)| {
                 let block_id = format!("{doc_id}_{i}");
-                let embedding_bytes = self.serialize_embedding(&block_emb.vector)?;
+                let embedding_bytes = self.serialize_embedding(&block_emb.embedding)?;
                 let content = block_emb.content.clone();
                 let start_pos = 0i64; // TODO: carry real positions
                 let end_pos = 0i64;

@@ -1,252 +1,352 @@
 use std::collections::HashMap;
-use std::path::Path;
-use std::sync::Arc;
-use anyhow::Result;
+use std::path::PathBuf;
+use std::fs;
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
-use crate::logger::Logger;
-use crate::ai::model_loader::{ModelLoader, EmbeddingModel as RealEmbeddingModel};
+use tracing::{info, warn, error, debug};
+use anyhow::Result;
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use crate::vault::parser::BlockType;
 
+/// Configuration for embedding models and processors
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EmbeddingModel {
-    pub name: String,
-    pub model_type: ModelType,
-    pub dimensions: usize,
-    pub max_length: usize,
-    pub model_path: std::path::PathBuf,
+pub struct EmbeddingConfig {
+    pub model_name: String,
+    pub max_tokens: usize,
+    pub chunk_size: usize,
+    pub overlap_size: usize,
+    pub dimension: usize,
+}
+
+impl Default for EmbeddingConfig {
+    fn default() -> Self {
+        Self {
+            model_name: "all-MiniLM-L6-v2".to_string(),
+            max_tokens: 512,
+            chunk_size: 512,
+            overlap_size: 50,
+            dimension: 384,
+        }
+    }
+}
+
+/// Represents a text embedding with metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TextEmbedding {
+    pub id: String,
+    pub text: String,
+    pub embedding: Vec<f32>,
+    pub metadata: HashMap<String, String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ModelType {
-    SentenceTransformer,
-    Bert,
-    Custom,
-}
-
+/// Vector embedding data structure expected by the search engine
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddingVector {
     pub text: String,
     pub vector: Vec<f32>,
     pub model_name: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub block_embeddings: Option<Vec<BlockEmbedding>>, // Added missing field
+    pub created_at: DateTime<Utc>,
+    pub block_embeddings: Option<Vec<BlockEmbedding>>,
 }
 
+/// Block-level embedding for fine-grained search
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockEmbedding {
     pub block_id: String,
+    pub embedding: Vec<f32>,
     pub content: String,
-    pub vector: Vec<f32>,
+    pub block_type: BlockType,
     pub start_pos: usize,
     pub end_pos: usize,
 }
 
-/// A thin abstraction to allow swapping embedding backends without touching callers
+/// Trait for embedding providers
 #[async_trait]
 pub trait EmbeddingProvider: Send + Sync {
     async fn embed(&self, text: &str, model_name: &str) -> Result<Vec<f32>>;
+    async fn embed_batch(&self, texts: &[String], model_name: &str) -> Result<Vec<Vec<f32>>>;
 }
 
+/// Main embeddings processor that implements EmbeddingProvider
 pub struct Embeddings {
-    models: Arc<RwLock<HashMap<String, EmbeddingModel>>>,
-    real_models: Arc<RwLock<HashMap<String, RealEmbeddingModel>>>, // REAL AI models
-    cache: Arc<RwLock<HashMap<String, Vec<f32>>>>,
-    model_loader: ModelLoader, // REAL model loader
-    logger: Logger,
+    config: EmbeddingConfig,
+    cache: HashMap<String, TextEmbedding>,
+    cache_dir: PathBuf,
+}
+
+#[async_trait]
+impl EmbeddingProvider for Embeddings {
+    async fn embed(&self, text: &str, _model_name: &str) -> Result<Vec<f32>> {
+        info!("Generating embedding for text chunk of {} characters", text.len());
+        
+        // For now, return a mock embedding vector
+        // TODO: Replace with actual model inference in Day 3 implementation
+        let embedding = self.generate_mock_embedding(text).await?;
+        
+        Ok(embedding)
+    }
+
+    async fn embed_batch(&self, texts: &[String], model_name: &str) -> Result<Vec<Vec<f32>>> {
+        info!("Generating embeddings for batch of {} texts", texts.len());
+        
+        let mut embeddings = Vec::new();
+        for text in texts {
+            let embedding = self.embed(text, model_name).await?;
+            embeddings.push(embedding);
+        }
+        
+        Ok(embeddings)
+    }
 }
 
 impl Embeddings {
+    /// Create a new embeddings processor
     pub fn new() -> Result<Self> {
+        let config = EmbeddingConfig::default();
+        let cache_dir = PathBuf::from("cache/embeddings");
+        if !cache_dir.exists() {
+            std::fs::create_dir_all(&cache_dir)?;
+        }
+
         Ok(Self {
-            models: Arc::new(RwLock::new(HashMap::new())),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-            logger: Logger::new("Embeddings"),
+            config,
+            cache: HashMap::new(),
+            cache_dir,
         })
     }
 
-    pub async fn add_model(&self, model: EmbeddingModel) -> Result<()> {
-        let mut models = self.models.write().await;
-        let model_name = model.name.clone();
-        models.insert(model_name.clone(), model);
-        self.logger.info(&format!("Added embedding model: {model_name}"));
-        Ok(())
-    }
-
-    pub async fn embed_text(&self, text: &str, model_name: &str) -> Result<Vec<f32>> {
+    /// Generate embedding for text (stub implementation)
+    pub async fn embed_text(&mut self, text: &str) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
+        info!("Generating embedding for text chunk of {} characters", text.len());
+        
         // Check cache first
-        let cache_key = format!("{model_name}:{text}");
-        {
-            let cache = self.cache.read().await;
-            if let Some(embedding) = cache.get(&cache_key) {
-                return Ok(embedding.clone());
-            }
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let mut hasher = DefaultHasher::new();
+        text.hash(&mut hasher);
+        let cache_key = format!("{:x}", hasher.finish());
+        
+        if let Some(cached) = self.cache.get(&cache_key) {
+            debug!("Found cached embedding for text");
+            return Ok(cached.embedding.clone());
         }
 
-        // TODO: Implement actual embedding generation
-        // For now, return a dummy embedding
-        let embedding = self.generate_dummy_embedding(text, model_name).await?;
+        // For now, return a mock embedding vector
+        // TODO: Replace with actual model inference in Day 3 implementation
+        let embedding = self.generate_mock_embedding(text).await?;
         
         // Cache the result
-        {
-            let mut cache = self.cache.write().await;
-            cache.insert(cache_key, embedding.clone());
-        }
-        
-        Ok(embedding)
-    }
-
-    async fn generate_dummy_embedding(&self, text: &str, model_name: &str) -> Result<Vec<f32>> {
-        // REAL IMPLEMENTATION: Generate actual embeddings using sentence-transformers
-        // For now, we'll implement a sophisticated deterministic embedding that's better than random
-        // TODO: Replace with actual sentence-transformer model when candle-transformers is integrated
-        
-        let dimensions = match model_name {
-            "all-MiniLM-L6-v2" => 384,
-            "sentence-t5-base" => 768,
-            _ => 384, // Default dimensions
+        let text_embedding = TextEmbedding {
+            id: cache_key.clone(),
+            text: text.to_string(),
+            embedding: embedding.clone(),
+            metadata: HashMap::new(),
+            created_at: chrono::Utc::now(),
         };
         
-        // Create a deterministic but realistic embedding based on text content
-        let mut embedding = vec![0.0f32; dimensions];
+        self.cache.insert(cache_key, text_embedding);
         
-        // Use multiple hash functions to create different aspects of meaning
-        let text_bytes = text.as_bytes();
-        let text_len = text.len() as f32;
-        
-        // Lexical features
-        for (i, chunk) in text_bytes.chunks(4).enumerate() {
-            let hash = chunk.iter().fold(0u32, |acc, &b| acc.wrapping_mul(31).wrapping_add(b as u32));
-            let index = i % dimensions;
-            embedding[index] += (hash as f32) / (u32::MAX as f32) * 0.1;
-        }
-        
-        // Semantic features based on word patterns
-        let words: Vec<&str> = text.split_whitespace().collect();
-        for (i, word) in words.iter().enumerate() {
-            let word_hash = word.bytes().fold(0u64, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u64));
-            let index = (word_hash as usize) % dimensions;
-            // Weight by position (earlier words matter more)
-            let position_weight = 1.0 / (1.0 + (i as f32) * 0.01);
-            embedding[index] += ((word_hash as f32) / (u64::MAX as f32)) * 0.2 * position_weight;
-        }
-        
-        // Length normalization
-        let length_factor = (text_len / 100.0).tanh(); // Normalize by typical text length
-        for val in embedding.iter_mut() {
-            *val *= length_factor;
-        }
-        
-        // L2 normalization for realistic embeddings
-        let norm: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
-        if norm > 0.0 {
-            for val in embedding.iter_mut() {
-                *val /= norm;
-            }
-        }
-        
-        self.logger.info(&format!("Generated {}-dimensional embedding for {} chars of text", dimensions, text.len()));
-        Ok(embedding)
-    }
-        
-        for i in 0..384 { // Standard embedding size
-            let byte_index = i % text_bytes.len();
-            let byte_value = if text_bytes.is_empty() { 0 } else { text_bytes[byte_index] };
-            let hash_component = (byte_value as f32 * (i as f32 + 1.0)) % 1.0;
-            embedding.push(hash_component);
-        }
-        
-        self.logger.info(&format!("Generated dummy embedding for '{text}' using model '{model_name}'"));
         Ok(embedding)
     }
 
-    pub async fn batch_embed(&self, texts: Vec<String>, model_name: &str) -> Result<Vec<Vec<f32>>> {
-        let mut embeddings = Vec::new();
+    /// Generate embeddings for multiple text chunks
+    pub async fn embed_batch(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error>> {
+        info!("Generating embeddings for batch of {} texts", texts.len());
         
+        let mut embeddings = Vec::new();
         for text in texts {
-            let embedding = self.embed_text(&text, model_name).await?;
+            let embedding = self.embed_text(text).await?;
             embeddings.push(embedding);
         }
         
         Ok(embeddings)
     }
 
-    pub async fn similarity(&self, embedding1: &[f32], embedding2: &[f32]) -> Result<f32> {
-        if embedding1.len() != embedding2.len() {
-            return Err(anyhow::anyhow!("Embedding dimensions don't match"));
+    /// Split text into chunks for embedding
+    pub fn chunk_text(&self, text: &str) -> Vec<String> {
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let mut chunks = Vec::new();
+        let mut current_chunk: Vec<&str> = Vec::new();
+        let mut current_length = 0;
+
+        for word in words {
+            let word_len = word.len();
+            
+            if current_length + word_len > self.config.chunk_size && !current_chunk.is_empty() {
+                // Create chunk with overlap
+                chunks.push(current_chunk.join(" "));
+                
+                // Keep overlap words
+                let overlap_words = if current_chunk.len() > self.config.overlap_size {
+                    current_chunk.split_off(current_chunk.len() - self.config.overlap_size)
+                } else {
+                    current_chunk.clone()
+                };
+                
+                current_chunk = overlap_words;
+                current_length = current_chunk.iter().map(|w| w.len()).sum::<usize>();
+            }
+            
+            current_chunk.push(word);
+            current_length += word_len + 1; // +1 for space
         }
-        
-        // Calculate cosine similarity
-        let mut dot_product = 0.0;
-        let mut norm1 = 0.0;
-        let mut norm2 = 0.0;
-        
-        for (a, b) in embedding1.iter().zip(embedding2.iter()) {
-            dot_product += a * b;
-            norm1 += a * a;
-            norm2 += b * b;
+
+        if !current_chunk.is_empty() {
+            chunks.push(current_chunk.join(" "));
         }
-        
-        let similarity = if norm1 > 0.0 && norm2 > 0.0 {
-            dot_product / (norm1.sqrt() * norm2.sqrt())
-        } else {
-            0.0
-        };
-        
-        Ok(similarity)
+
+        debug!("Split text into {} chunks", chunks.len());
+        chunks
     }
 
-    pub async fn find_similar(&self, query_embedding: &[f32], embeddings: &[Vec<f32>], top_k: usize) -> Result<Vec<(usize, f32)>> {
-        let mut similarities = Vec::new();
+    /// Save embedding cache to disk
+    pub fn save_cache(&self) -> Result<()> {
+        let cache_file = self.cache_dir.join("embeddings_cache.json");
+        let json = serde_json::to_string_pretty(&self.cache)?;
         
-        for (i, embedding) in embeddings.iter().enumerate() {
-            let similarity = self.similarity(query_embedding, embedding).await?;
-            similarities.push((i, similarity));
-        }
-        
-        // Sort by similarity (descending) and take top_k
-        similarities.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        similarities.truncate(top_k);
-        
-        Ok(similarities)
-    }
-
-    pub async fn load_model(&self, model_path: &Path) -> Result<EmbeddingModel> {
-        // TODO: Implement model loading from safetensors
-        // For now, return a dummy model
-        let model = EmbeddingModel {
-            name: "dummy-model".to_string(),
-            model_type: ModelType::SentenceTransformer,
-            dimensions: 384,
-            max_length: 512,
-            model_path: model_path.to_path_buf(),
-            created_at: chrono::Utc::now(),
-        };
-        
-        self.logger.info(&format!("Loaded dummy embedding model from {model_path:?}"));
-        Ok(model)
-    }
-
-    pub async fn clear_cache(&self) -> Result<()> {
-        let mut cache = self.cache.write().await;
-        cache.clear();
-        self.logger.info("Cleared embedding cache");
+        fs::write(cache_file, json)?;
+        info!("Saved {} embeddings to cache", self.cache.len());
         Ok(())
     }
 
-    pub async fn get_cache_stats(&self) -> Result<HashMap<String, usize>> {
-        let cache = self.cache.read().await;
-        let mut stats = HashMap::new();
-        stats.insert("total_embeddings".to_string(), cache.len());
-        stats.insert("cache_size_bytes".to_string(), cache.values().map(|v| v.len() * 4).sum());
-        Ok(stats)
+    /// Load embedding cache from disk
+    pub fn load_cache(&mut self) -> Result<()> {
+        let cache_file = self.cache_dir.join("embeddings_cache.json");
+        
+        if cache_file.exists() {
+            let content = fs::read_to_string(cache_file)?;
+            self.cache = serde_json::from_str(&content)?;
+            
+            info!("Loaded {} embeddings from cache", self.cache.len());
+        }
+        
+        Ok(())
+    }
+
+    /// Get embedding configuration
+    pub fn config(&self) -> &EmbeddingConfig {
+        &self.config
+    }
+
+    /// Get cache statistics
+    pub fn cache_stats(&self) -> (usize, usize) {
+        let total_embeddings = self.cache.len();
+        let total_memory = self.cache.values()
+            .map(|e| e.embedding.len() * std::mem::size_of::<f32>())
+            .sum::<usize>();
+        
+        (total_embeddings, total_memory)
+    }
+
+    /// Clear embedding cache
+    pub fn clear_cache(&mut self) {
+        self.cache.clear();
+        info!("Cleared embedding cache");
+    }
+
+    /// Generate mock embedding (placeholder implementation)
+    async fn generate_mock_embedding(&self, text: &str) -> Result<Vec<f32>> {
+        // Simple hash-based mock embedding for testing
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let mut hasher = DefaultHasher::new();
+        text.hash(&mut hasher);
+        let hash = hasher.finish();
+        
+        // Generate deterministic but varied embedding
+        let mut embedding = Vec::with_capacity(self.config.dimension);
+        let mut seed = hash;
+        
+        for _ in 0..self.config.dimension {
+            seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
+            let value = ((seed >> 16) as f32) / 32768.0 - 1.0; // Range [-1, 1]
+            embedding.push(value);
+        }
+        
+        // Normalize the vector
+        let magnitude: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
+        if magnitude > 0.0 {
+            for value in &mut embedding {
+                *value /= magnitude;
+            }
+        }
+        
+        Ok(embedding)
+    }
+
+    /// Find similar embeddings using cosine similarity
+    pub fn find_similar(&self, query_embedding: &[f32], threshold: f32, limit: usize) -> Vec<(String, f32)> {
+        let mut similarities: Vec<(String, f32)> = self.cache
+            .iter()
+            .map(|(id, embedding)| {
+                let similarity = cosine_similarity(query_embedding, &embedding.embedding);
+                (id.clone(), similarity)
+            })
+            .filter(|(_, similarity)| *similarity >= threshold)
+            .collect();
+        
+        similarities.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        similarities.truncate(limit);
+        
+        similarities
     }
 }
 
-#[async_trait]
-impl EmbeddingProvider for Embeddings {
-    async fn embed(&self, text: &str, model_name: &str) -> Result<Vec<f32>> {
-        self.embed_text(text, model_name).await
+/// Calculate cosine similarity between two vectors
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() {
+        return 0.0;
+    }
+    
+    let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+    let magnitude_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+    let magnitude_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+    
+    if magnitude_a == 0.0 || magnitude_b == 0.0 {
+        return 0.0;
+    }
+    
+    dot_product / (magnitude_a * magnitude_b)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_embedding_generation() {
+        let embeddings = Embeddings::new().unwrap();
+        let result = embeddings.embed("Hello world", "test-model").await;
+        assert!(result.is_ok());
+        
+        let embedding = result.unwrap();
+        assert_eq!(embedding.len(), 384); // Default dimension
+    }
+
+    #[test]
+    fn test_text_chunking() {
+        let mut embeddings = Embeddings::new().unwrap();
+        embeddings.config.chunk_size = 50;
+        embeddings.config.overlap_size = 10;
+        
+        let text = "This is a long text that should be split into multiple chunks for processing";
+        let chunks = embeddings.chunk_text(text);
+        
+        assert!(chunks.len() > 1);
+    }
+
+    #[test]
+    fn test_cosine_similarity() {
+        let a = vec![1.0, 0.0, 0.0];
+        let b = vec![1.0, 0.0, 0.0];
+        let similarity = cosine_similarity(&a, &b);
+        assert!((similarity - 1.0).abs() < 1e-6);
+        
+        let c = vec![0.0, 1.0, 0.0];
+        let similarity = cosine_similarity(&a, &c);
+        assert!((similarity - 0.0).abs() < 1e-6);
     }
 }
