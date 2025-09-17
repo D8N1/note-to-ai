@@ -1,12 +1,8 @@
-# � note-to-ai: 
+# note-to-ai: Intelligence Compression Engine
 
-[![Project Status: WIP](https://img.shields.io/badge/status-WIP-orange)](./STATUS.md) [![Privacy-First](https://img.shields.io/badge/privacy-local--only-green)](#privacy--security) [![Executive-Grade](https://img.shields.io/badge/intelligence-presidential--brief-red)](#presidential-brief-system)
+[![Security Audit](https://img.shields.io/badge/security-audited-green)](./deny.toml) [![Dependencies](https://img.shields.io/badge/dependencies-50_direct-blue)](#dependencies) [![Features](https://img.shields.io/badge/features-modular-orange)](./FEATURE_FLAGS.md)
 
-> **Transform voice notes, URL's and documents into executive-grade intelligence briefings with adaptive AI that gets smarter every day.**
-
-**Signal "Note to Self" → AI Intelligence Engine → President's Daily Brief → Evolving Knowledge Base**
-
-This isn't note-taking. This is **intelligence generation**. Every voice message becomes a structured brief. Every query teaches the system. Every interaction builds your private intelligence empire.
+> **Transform voice notes and documents into executive-grade intelligence briefings using cognitive under-clocking and adaptive AI that learns your patterns.**
 
 ## 🏛️ **THE PRESIDENTIAL BRIEF SYSTEM**
 

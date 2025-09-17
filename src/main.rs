@@ -7,10 +7,15 @@ use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 mod config;
 mod logger;
+#[cfg(feature = "analytics")]
 mod vault;
+#[cfg(feature = "ai-models")]
 mod ai;
+#[cfg(feature = "ai-models")]
 mod signal_integration;  // Renamed to avoid conflict
+#[cfg(feature = "arkworks-backend")]
 mod crypto;
+#[cfg(feature = "arkworks-backend")]
 mod identity;
 mod swarm;
 mod audio;
@@ -69,7 +74,9 @@ impl NoteToAI {
         use chrono::Utc;
         use rand::{distributions::Alphanumeric, Rng};
         use base64::{engine::general_purpose, Engine as _};
+    #[cfg(feature = "arkworks-backend")]
     use ark_bn254::Fr;
+    #[cfg(feature = "arkworks-backend")]
     use crypto::zk_proofs::ZKProofs;
 
     let db_path = PathBuf::from(&self.config.database.path);
@@ -86,14 +93,22 @@ impl NoteToAI {
 
         // Dummy zk proof placeholders (base64) until real circuits land
     // Generate a toy Groth16 proof (placeholder until real circuits)
-    let mut zk = ZKProofs::new()?;
-    zk.setup()?;
-    let a = Fr::from(3u64);
-    let b = Fr::from(4u64);
-    let (proof_bytes, vk_bytes, public_inputs) = zk.prove_toy_sum(a, b)?;
-    let dummy_proof = general_purpose::STANDARD.encode(&proof_bytes);
-    let dummy_vk = general_purpose::STANDARD.encode(&vk_bytes);
-    let metadata_b64 = general_purpose::STANDARD.encode(&public_inputs);
+    #[cfg(feature = "arkworks-backend")]
+    let (dummy_proof, dummy_vk, metadata_b64) = {
+        let mut zk = ZKProofs::new()?;
+        zk.setup()?;
+        let a = Fr::from(3u64);
+        let b = Fr::from(4u64);
+        let (proof_bytes, vk_bytes, public_inputs) = zk.prove_toy_sum(a, b)?;
+        let dummy_proof = general_purpose::STANDARD.encode(&proof_bytes);
+        let dummy_vk = general_purpose::STANDARD.encode(&vk_bytes);
+        let metadata_b64 = general_purpose::STANDARD.encode(&public_inputs);
+        (dummy_proof, dummy_vk, metadata_b64)
+    };
+    #[cfg(not(feature = "arkworks-backend"))]
+    let (dummy_proof, dummy_vk, metadata_b64) = {
+        ("dummy_proof".to_string(), "dummy_vk".to_string(), "dummy_metadata".to_string())
+    };
 
         // Random id
         let id: String = rand::thread_rng()
@@ -654,6 +669,7 @@ impl NoteToAI {
     
     /// Run Signal Protocol integration tests
     pub async fn test_signal_protocol(&self) -> Result<()> {
+        #[cfg(feature = "ai-models")]
         use signal_integration::integration_tests::SignalIntegrationTester;
         
         info!("Running Signal Protocol integration tests");

@@ -115,7 +115,7 @@ pub enum ResponseStyle {
 /// Brief format options
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BriefFormat {
-    PresidentsBrief,  // Executive summary format
+    ExecutiveBrief,   // Executive summary format for strategic decision-making
     BulletPoints,     // Quick bullet point summary
     Narrative,        // Story-like flowing summary
     QandA,           // Question and answer format
@@ -131,7 +131,7 @@ impl Default for UXConfig {
             include_related_notes: true,
             max_response_length: 1000,
             enable_voice_responses: false,
-            brief_format: BriefFormat::PresidentsBrief,
+            brief_format: BriefFormat::ExecutiveBrief,
         }
     }
 }
@@ -425,7 +425,7 @@ impl NoteToSelfProcessor {
         };
         
         let format_instruction = match self.config.brief_format {
-            BriefFormat::PresidentsBrief => "Format your response as an executive briefing with: Executive Summary, Key Points, Action Items, and Strategic Recommendations.",
+            BriefFormat::ExecutiveBrief => "Format your response as an executive briefing with: Executive Summary, Key Points, Action Items, and Strategic Recommendations.",
             BriefFormat::BulletPoints => "Use clear bullet points to organize your response.",
             BriefFormat::Narrative => "Provide a flowing, story-like narrative response.",
             BriefFormat::QandA => "Structure your response as questions and answers.",

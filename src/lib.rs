@@ -2,11 +2,13 @@
 pub mod compression;
 
 // Essential modules for MVP
+#[cfg(feature = "ai-models")]
 pub mod ai;
 pub mod audio;
 pub mod config;
 pub mod logger;
 pub mod obsidian;
+#[cfg(feature = "analytics")]
 pub mod vault;
 
 // Post-MVP modules (deferred for cross-industry focus)
@@ -24,11 +26,11 @@ pub use compression::{
     CompressionEngine, CompressionContext, CognitiveOutput, 
     InformationPacket, DecisionPoint, IntelligenceSummary
 };
-pub use compression::legal::{LegalCompressionEngine, LegalIntelligence};
-pub use compression::medical::{MedicalCompressionEngine, MedicalIntelligence};
 
-// Core AI exports for MVP
+// Core AI exports for MVP (conditional based on features)
+#[cfg(feature = "ai-models")]
 pub use vault::embeddings::EmbeddingProvider;
+#[cfg(feature = "analytics")]
 pub use vault::storage::HybridStorageEngine;
 
 // Obsidian exports

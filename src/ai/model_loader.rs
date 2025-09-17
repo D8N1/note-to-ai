@@ -11,6 +11,7 @@ use candle_core::backend::BackendDevice;
 /// Real AI model loader - NO MORE STUBS
 pub struct ModelLoader {
     models_dir: PathBuf,
+    #[cfg(feature = "ai-models")]
     device: Device,
 }
 
@@ -36,38 +37,55 @@ impl ModelLoader {
     pub fn new() -> Result<Self> {
         let models_dir = PathBuf::from("./models");
         
-        // Detect best available device
-        let device = Self::detect_device()?;
-        info!("Model loader initialized with device: {:?}", device);
+        #[cfg(feature = "ai-models")]
+        {
+            // Detect best available device
+            let device = Self::detect_device()?;
+            info!("Model loader initialized with device: {:?}", device);
+            
+            Ok(Self {
+                models_dir,
+                device,
+            })
+        }
         
-        Ok(Self {
-            models_dir,
-            device,
-        })
+        #[cfg(not(feature = "ai-models"))]
+        {
+            Self::detect_device()?; // Just for logging
+            info!("Model loader initialized without AI device");
+            
+            Ok(Self {
+                models_dir,
+            })
+        }
     }
     
     /// Detect best available compute device
+    #[cfg(feature = "ai-models")]
     fn detect_device() -> Result<Device> {
-        #[cfg(feature = "ai-models")]
-        {
-            // Try Metal (for M1/M2 Macs)
-            if candle_core::utils::metal_is_available() {
-                use candle_core::backend::BackendDevice;
-                info!("Using Metal device for AI acceleration");
-                return Ok(Device::Metal(candle_core::MetalDevice::new(0)?));
-            }
-            
-            // Try CUDA (for NVIDIA GPUs)  
-            if candle_core::utils::cuda_is_available() {
-                use candle_core::backend::BackendDevice;
-                info!("Using CUDA device for AI acceleration");
-                return Ok(Device::Cuda(candle_core::CudaDevice::new(0)?));
-            }
+        // Try Metal (for M1/M2 Macs)
+        if candle_core::utils::metal_is_available() {
+            use candle_core::backend::BackendDevice;
+            info!("Using Metal device for AI acceleration");
+            return Ok(Device::Metal(candle_core::MetalDevice::new(0)?));
+        }
+        
+        // Try CUDA (for NVIDIA GPUs)  
+        if candle_core::utils::cuda_is_available() {
+            use candle_core::backend::BackendDevice;
+            info!("Using CUDA device for AI acceleration");
+            return Ok(Device::Cuda(candle_core::CudaDevice::new(0)?));
         }
         
         // Fallback to CPU
         info!("Using CPU device for AI processing");
         Ok(Device::Cpu)
+    }
+    
+    #[cfg(not(feature = "ai-models"))]
+    fn detect_device() -> Result<()> {
+        info!("AI models feature disabled - no device detection");
+        Ok(())
     }
     
     /// Load real Whisper model for transcription
@@ -128,7 +146,6 @@ impl ModelLoader {
         let model_info = self.get_model_info(model_name)?;
         Ok(EmbeddingModel {
             model_info,
-            device: Device::Cpu,
             tensors: None,
         })
     }
@@ -214,6 +231,7 @@ pub struct WhisperModel {
 /// Real embedding model
 pub struct EmbeddingModel {
     pub model_info: ModelInfo,
+    #[cfg(feature = "ai-models")]
     pub device: Device,
     #[cfg(feature = "ai-models")]
     pub tensors: Option<std::collections::HashMap<String, Tensor>>,

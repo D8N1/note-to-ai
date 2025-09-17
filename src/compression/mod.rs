@@ -1,8 +1,7 @@
 // MVP Core: Intelligence Compression Engine
 // Transforms information overload into actionable 10-bit decisions
 
-pub mod legal;
-pub mod medical;
+// Core compression only - industry specializations moved to research phase
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -11,7 +10,9 @@ use chrono::{DateTime, Utc};
 /// Core compression engine that transforms high-volume information into
 /// human-optimized intelligence matching cognitive processing limits
 pub struct CompressionEngine {
+    #[cfg(feature = "analytics")]
     embeddings: Box<dyn crate::vault::embeddings::EmbeddingProvider>,
+    #[cfg(feature = "analytics")]
     storage: crate::vault::storage::HybridStorageEngine,
     pattern_matcher: PatternMatcher,
     relevance_scorer: RelevanceScorer,
@@ -46,17 +47,17 @@ pub enum Priority {
     Background,  // For pattern building
 }
 
-/// Human-optimized output matching cognitive processing speed
+/// Human-optimized output matching cognitive processing speed (under clocked)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CognitiveOutput {
-    pub decision_points: Vec<DecisionPoint>,     // 10 bits/second
-    pub summary: Option<IntelligenceSummary>,    // 40 bits/second
-    pub deep_context: Option<DeepContext>,       // 120 bits/second
+    pub decision_points: Vec<DecisionPoint>,     // 8 bits/second (under clocked)
+    pub summary: Option<IntelligenceSummary>,    // 32 bits/second (under clocked)
+    pub deep_context: Option<DeepContext>,       // 64 bits/second (under clocked)
     pub confidence: f32,
     pub processing_time: std::time::Duration,
 }
 
-/// Single decision point optimized for 10-bit human processing
+/// Single decision point optimized for 8-bit human processing (under clocked)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DecisionPoint {
     pub question: String,           // Simple yes/no or choice
@@ -66,7 +67,7 @@ pub struct DecisionPoint {
     pub urgency: Priority,
 }
 
-/// 40-bit summary for conscious reading
+/// 32-bit summary for conscious reading (under clocked)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IntelligenceSummary {
     pub headline: String,           // One sentence takeaway
@@ -75,7 +76,7 @@ pub struct IntelligenceSummary {
     pub deadline: Option<DateTime<Utc>>,
 }
 
-/// 120-bit deep context when user needs full picture
+/// 64-bit deep context when user needs full picture (under clocked)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeepContext {
     pub analysis: String,           // Detailed analysis
@@ -87,7 +88,9 @@ pub struct DeepContext {
 impl CompressionEngine {
     pub async fn new() -> Result<Self, CompressionError> {
         Ok(Self {
+            #[cfg(feature = "analytics")]
             embeddings: Box::new(crate::vault::embeddings::Embeddings::new().map_err(|e| CompressionError::EmbeddingError(e.to_string()))?),
+            #[cfg(feature = "analytics")]
             storage: crate::vault::storage::HybridStorageEngine::new(std::path::PathBuf::from("./data")).await
                 .map_err(|e| CompressionError::StorageError(e.to_string()))?,
             pattern_matcher: PatternMatcher::new(),
@@ -106,15 +109,31 @@ impl CompressionEngine {
         
         // Step 1: Generate embeddings for semantic understanding
         let mut enriched_info = Vec::new();
-        for packet in information {
-            let embedding = self.embeddings.embed(&packet.content, "default").await
-                .map_err(|e| CompressionError::EmbeddingError(e.to_string()))?;
-            enriched_info.push(EnrichedInformation {
-                packet,
-                embedding,
-                patterns: Vec::new(),
-                relevance_score: 0.0,
-            });
+        #[cfg(feature = "analytics")]
+        {
+            for packet in information {
+                let embedding = self.embeddings.embed(&packet.content, "default").await
+                    .map_err(|e| CompressionError::EmbeddingError(e.to_string()))?;
+                enriched_info.push(EnrichedInformation {
+                    packet,
+                    embedding,
+                    patterns: Vec::new(),
+                    relevance_score: 0.0,
+                });
+            }
+        }
+        #[cfg(not(feature = "analytics"))]
+        {
+            for packet in information {
+                // Use fallback embedding for compression engine without analytics
+                let embedding = vec![0.0; 384]; // Standard embedding dimension
+                enriched_info.push(EnrichedInformation {
+                    packet,
+                    embedding,
+                    patterns: Vec::new(),
+                    relevance_score: 0.0,
+                });
+            }
         }
 
         // Step 2: Pattern recognition across information streams

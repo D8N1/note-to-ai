@@ -1,0 +1,46 @@
+# Rust-analyzer configuration to prevent crashes
+# This excludes large directories and limits resource usage
+
+[files]
+exclude = [
+    "target/",
+    "models/huggingface_cache/",
+    "models/whisper.cpp/", 
+    "models/mlx/",
+    "huggingface_cache/",
+    "arrow-rs/",
+    "vault/",
+    "Tech_Lead_Briefs/"
+]
+
+[cargo]
+allFeatures = false
+features = ["default"]
+target = null
+noDefaultFeatures = false
+buildScripts = { enable = false }
+
+[diagnostics]
+disabled = ["unresolved-proc-macro", "inactive-code"]
+
+[procMacro]
+enable = true
+ignored = { tokio = ["main", "test"] }
+
+[completion]
+limit = 100
+
+[hover]
+actions = { enable = false }
+
+[lens]
+enable = false
+
+[inlayHints]
+enable = false
+
+[checkOnSave]
+enable = true
+command = "check"
+allTargets = false
+extraArgs = ["--target-dir", "/tmp/rust-analyzer-check"]
